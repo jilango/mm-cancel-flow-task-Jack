@@ -1,0 +1,110 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { supabaseAdmin } from '@/lib/supabase';
+
+const UpdateSchema = z.object({
+  reason: z.string().max(500, 'Reason too long').optional().nullable(),
+  acceptedDownsell: z.boolean().optional().nullable(),
+  details: z.record(z.any()).optional().nullable(),
+});
+
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  try {
+    // Basic CSRF hardening
+    const site = process.env.NEXT_PUBLIC_SITE_URL;
+    if (site) {
+      const origin = req.headers.get('origin') ?? '';
+      if (!origin.startsWith(site) && !origin.startsWith('http://localhost:3000')) {
+        return NextResponse.json({ error: 'Bad origin' }, { status: 403 });
+      }
+    }
+
+    const id = params?.id;
+    if (!id) {
+      return NextResponse.json({ error: 'Missing cancellation ID' }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const validation = UpdateSchema.safeParse(body);
+    
+    if (!validation.success) {
+      return NextResponse.json({ 
+        error: 'Invalid request data', 
+        details: validation.error.errors 
+      }, { status: 400 });
+    }
+
+    // For development/testing without database
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      // Mock response for testing
+      return NextResponse.json({ ok: true });
+    }
+
+    const updates: Record<string, unknown> = {};
+
+    if (validation.data.reason !== undefined) {
+      updates.reason = validation.data.reason;
+    }
+    if (validation.data.acceptedDownsell !== undefined) {
+      updates.accepted_downsell = validation.data.acceptedDownsell;
+    }
+    if (validation.data.details && typeof validation.data.details === 'object') {
+      updates.details = validation.data.details;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    // Check if cancellation exists and get subscription_id
+    const { data: existing, error: getErr } = await supabaseAdmin
+      .from('cancellations')
+      .select('id, subscription_id, resolved_at')
+      .eq('id', id)
+      .single();
+
+    if (getErr || !existing) {
+      return NextResponse.json({ error: 'Cancellation not found' }, { status: 404 });
+    }
+
+    if (existing.resolved_at) {
+      return NextResponse.json({ error: 'Cancellation already resolved' }, { status: 409 });
+    }
+
+    // Determine if this update closes the cancellation
+    const isClosing = 
+      updates.accepted_downsell === true || 
+      (typeof updates.reason === 'string' && updates.reason.trim() !== '');
+
+    if (isClosing) {
+      updates.resolved_at = new Date().toISOString();
+    }
+
+    // Update cancellation record
+    const { error: updErr } = await supabaseAdmin
+      .from('cancellations')
+      .update(updates)
+      .eq('id', id);
+
+    if (updErr) {
+      return NextResponse.json({ error: 'Failed to update cancellation' }, { status: 500 });
+    }
+
+    // If downsell accepted, restore subscription to active
+    if (updates.accepted_downsell === true) {
+      const { error: subErr } = await supabaseAdmin
+        .from('subscriptions')
+        .update({ status: 'active' })
+        .eq('id', existing.subscription_id);
+
+      if (subErr) {
+        return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 });
+      }
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error('Update cancellation error:', e);
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  }
+}

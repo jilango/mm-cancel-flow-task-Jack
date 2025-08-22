@@ -1,0 +1,11 @@
+<svg width="400" height="112" viewBox="0 0 400 112" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="112" fill="#f3f4f6"/>
+  <rect x="0" y="0" width="400" height="112" fill="url(#gradient)"/>
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8952fc;stop-opacity:0.1" />
+      <stop offset="100%" style="stop-color:#7b40fc;stop-opacity:0.2" />
+    </linearGradient>
+  </defs>
+  <text x="200" y="56" text-anchor="middle" fill="#6b7280" font-family="system-ui" font-size="14" font-weight="500">Hero Image</text>
+</svg>
