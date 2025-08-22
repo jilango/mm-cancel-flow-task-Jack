@@ -26,7 +26,7 @@ export default function CancelFlowModal({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'done'>('start');
+  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'subscriptionCancelled' | 'offerAccepted' | 'foundJobStep1'>('start');
 
 
   const [data, setData] = useState<StartResp | null>(null);
@@ -41,6 +41,13 @@ export default function CancelFlowModal({
   const [foundViaUs, setFoundViaUs] = useState<'yes' | 'no' | ''>('');
   const [visaType, setVisaType] = useState<'H-1B' | 'OPT' | 'Green card' | 'Citizen' | 'Other' | ''>('');
   const [foundNotes, setFoundNotes] = useState('');
+  
+  // Found job survey state
+  const [foundJobViaMigrateMate, setFoundJobViaMigrateMate] = useState<string>('');
+  const [foundJobRolesApplied, setFoundJobRolesApplied] = useState<string>('');
+  const [foundJobCompaniesEmailed, setFoundJobCompaniesEmailed] = useState<string>('');
+  const [foundJobCompaniesInterviewed, setFoundJobCompaniesInterviewed] = useState<string>('');
+
   const [acceptedOffer, setAcceptedOffer] = useState<boolean | null>(null);
   const [surveyData, setSurveyData] = useState({
     rolesApplied: '',
@@ -98,12 +105,8 @@ export default function CancelFlowModal({
       
       const payload = (await res.json()) as StartResp;
       setData(payload);
-      // A/B Testing: Variant B shows offer, Variant A goes directly to found details
-      if (payload.variant === 'B') {
-        setStep('offer');
-      } else {
-        setStep('foundDetails');
-      }
+      // Go to found job survey step 1
+      setStep('foundJobStep1');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong starting cancellation');
     } finally {
@@ -152,13 +155,31 @@ export default function CancelFlowModal({
           previousStep: 'reason'
         };
       
-      case 'done':
+      case 'subscriptionCancelled':
         return {
-          title: 'Completed',
+          title: 'Subscription Cancelled',
           progress: [true, true, true], // ●●●
           showBackButton: false,
           isVariant: false,
           previousStep: null
+        };
+      
+      case 'offerAccepted':
+        return {
+          title: 'Subscription',
+          progress: [true, true, true], // ●●●
+          showBackButton: false,
+          isVariant: false,
+          previousStep: null
+        };
+      
+      case 'foundJobStep1':
+        return {
+          title: 'Step 1 of 3',
+          progress: [false, false, false], // ○○○
+          showBackButton: true,
+          isVariant: false,
+          previousStep: 'start'
         };
       
       default:
@@ -195,6 +216,7 @@ export default function CancelFlowModal({
       case 'step2OfferVariantA': return 1;
       case 'reason': return 2;
       case 'foundDetails': return 2;
+      case 'foundJobStep1': return 0;
       default: return 0;
     }
   };
@@ -233,8 +255,16 @@ export default function CancelFlowModal({
       
       const payload = (await res.json()) as StartResp;
       setData(payload);
-      // Go directly to Step 1 Offer
-      setStep('step1Offer');
+      
+      // A/B Testing: 50% chance to go to Step 1 Offer or directly to Subscription Cancelled
+      const randomValue = Math.random();
+      if (randomValue < 0.5) {
+        // 50% chance: Go to Step 1 Offer
+        setStep('step1Offer');
+      } else {
+        // 50% chance: Go directly to Subscription Cancelled
+        setStep('subscriptionCancelled');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong starting cancellation');
     } finally {
@@ -244,7 +274,7 @@ export default function CancelFlowModal({
 
   const handleAcceptStep1Offer = async () => {
     // Handle accepting the 50% off offer
-    setStep('done');
+    setStep('offerAccepted');
   };
 
   const handleDeclineStep1Offer = async () => {
@@ -254,7 +284,7 @@ export default function CancelFlowModal({
 
   const handleAcceptStep2Offer = async () => {
     // Handle accepting the 50% off offer from step 2
-    setStep('done');
+    setStep('offerAccepted');
   };
 
   const handleContinueFromStep2 = async () => {
@@ -278,7 +308,7 @@ export default function CancelFlowModal({
         throw new Error(errorData.error || 'Failed to accept offer');
       }
       
-      setStep('done');
+      setStep('subscriptionCancelled');
       setTimeout(onClose, 500);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to record acceptance');
@@ -322,8 +352,7 @@ export default function CancelFlowModal({
         throw new Error(errorData.error || 'Failed to save reason');
       }
       
-      setStep('done');
-      setTimeout(onClose, 800);
+      setStep('subscriptionCancelled');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save reason');
     } finally {
@@ -358,8 +387,7 @@ export default function CancelFlowModal({
         throw new Error(errorData.error || 'Failed to save details');
       }
       
-      setStep('done');
-      setTimeout(onClose, 800);
+      setStep('subscriptionCancelled');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save details');
     } finally {
@@ -372,11 +400,12 @@ export default function CancelFlowModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start lg:items-center justify-center pt-16 lg:pt-0 p-0 lg:p-4">
       <div className="absolute inset-0 bg-gray-800/50" onClick={onClose} />
-      <div className="relative w-full max-w-none lg:max-w-7xl bg-white rounded-t-lg lg:rounded-lg shadow-xl overflow-hidden flex flex-col h-full lg:h-auto">
+      <div className="relative w-full max-w-none lg:max-w-7xl bg-white rounded-t-lg lg:rounded-lg shadow-xl overflow-hidden flex flex-col h-full lg:h-auto max-h-screen">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <div className="w-24">
-            {step !== 'start' && (
+        <div className="flex items-center justify-between px-4 lg:px-6 py-2 lg:py-4 border-b border-gray-200">
+          <div className="hidden lg:block w-24">
+            {/* Back button only on desktop */}
+            {step !== 'start' && step !== 'subscriptionCancelled' && step !== 'offerAccepted' && (
               <button 
                 onClick={goToPreviousStep}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
@@ -384,37 +413,38 @@ export default function CancelFlowModal({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
-                <span>Back</span>
+                <span className="text-base">Back</span>
               </button>
             )}
           </div>
-          <div className="flex items-center gap-8">
-            <h2 className="text-xl font-semibold text-gray-800 text-center whitespace-nowrap">
-              Subscription Cancellation
+          
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 lg:gap-8">
+            <h2 className="text-lg lg:text-xl font-semibold text-gray-800 text-left lg:text-center whitespace-nowrap">
+              {step === 'offerAccepted' ? 'Subscription' : 'Subscription Cancellation'}
             </h2>
-            {step !== 'start' && (
-              <div className="flex items-center gap-4">
-                <div className="flex gap-3">
+            {step !== 'start' && step !== 'offerAccepted' && (
+              <div className="flex items-center gap-3 lg:gap-4">
+                <div className="flex gap-2 lg:gap-3">
                   {getStepInfo(step, 1).progress.map((isCompleted, index) => (
                     <div 
                       key={index}
-                      className={`w-10 h-3 rounded-full ${
+                      className={`w-6 h-2 lg:w-10 lg:h-3 rounded-full ${
                         isCompleted ? 'bg-green-500' : index === getCurrentStepIndex(step) ? 'bg-gray-500' : 'bg-gray-200'
                       }`}
                     />
                   ))}
                 </div>
-                <span className="text-sm text-gray-600">{getStepInfo(step, 1).title}</span>
+                <span className="text-xs lg:text-sm text-gray-600">{getStepInfo(step, 1).title}</span>
               </div>
             )}
           </div>
 
-          <div className="w-24 flex justify-end">
+          <div className="w-16 lg:w-24 flex justify-end">
             <button 
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 transition-colors p-1"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -423,22 +453,39 @@ export default function CancelFlowModal({
 
         {/* Main content area */}
         <div className="flex flex-col lg:flex-row lg:gap-0 min-h-0 flex-1">
-          {/* Mobile: Image banner above content */}
-          <div className="lg:hidden w-full px-4 pt-2">
-            <div className="w-full h-48 relative rounded-lg overflow-hidden">
-              <Image 
-                src={heroSrc} 
-                alt="New York City skyline" 
-                fill
-                className="object-cover"
-                priority 
-                sizes="100vw"
-              />
-            </div>
+          {/* Mobile: Back button above image */}
+          <div className="lg:hidden px-6 pt-2">
+            {step !== 'start' && step !== 'subscriptionCancelled' && (
+              <button 
+                onClick={goToPreviousStep}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors mb-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="text-sm">Back</span>
+              </button>
+            )}
           </div>
+          
+          {/* Mobile: Image banner above content - only on start, subscription cancelled, and found job step 1 */}
+          {(step === 'start' || step === 'subscriptionCancelled') && (
+            <div className="lg:hidden w-full px-6 pt-2">
+              <div className="w-full h-40 sm:h-48 lg:h-44 relative rounded-lg overflow-hidden">
+                <Image 
+                  src={heroSrc} 
+                  alt="New York City skyline" 
+                  fill
+                  className="object-cover"
+                  priority 
+                  sizes="100vw"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Content area */}
-          <div className="flex-1 px-6 pt-3 pb-4 lg:py-6 flex flex-col min-h-0">
+          <div className="flex-1 px-6 pt-2 pb-4 lg:py-6 flex flex-col min-h-0">
             {/* Error display */}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg" aria-live="polite">
@@ -447,37 +494,37 @@ export default function CancelFlowModal({
             )}
 
             {step === 'start' && (
-              <div className="space-y-4 lg:space-y-6 flex-1">
+              <div className="space-y-3 lg:space-y-6 flex-1">
                 {/* Greeting */}
-                <h3 className="text-2xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
+                <h3 className="text-xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
                   Hey mate,<br />
                   Quick one before you go.
                 </h3>
                 
                 {/* Question */}
-                <h3 className="text-2xl lg:text-4xl font-semibold italic text-[#41403D] leading-tight">
+                <h3 className="text-xl lg:text-4xl font-semibold italic text-[#41403D] leading-tight">
                   Have you found a job yet?
                 </h3>
                 
                 {/* Descriptive text */}
-                <p className="text-base lg:text-xl text-[#41403D] leading-relaxed">
+                <p className="text-sm lg:text-xl text-[#41403D] leading-relaxed">
                   Whatever your answer, we just want to help you take the next step. With visa support, or by hearing how we can do better.
                 </p>
                 
                 {/* Separation line */}
-                <div className="border-t border-gray-200 mt-4"></div>
+                <div className="border-t border-gray-200 mt-3"></div>
                 
                 {/* Buttons */}
-                <div className="space-y-3 mt-auto">
+                <div className="space-y-2 mt-auto">
                   <button 
-                    className="w-full px-6 lg:px-8 py-3 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-lg lg:text-xl" 
+                    className="w-full px-6 lg:px-8 py-2 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-base lg:text-xl" 
                     onClick={handleFoundJob} 
                     disabled={loading}
                   >
                     {loading ? 'Loading…' : 'Yes, I\'ve found a job'}
                   </button>
                   <button 
-                    className="w-full px-6 lg:px-8 py-3 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors text-lg lg:text-xl" 
+                    className="w-full px-6 lg:px-8 py-2 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors text-base lg:text-xl" 
                     onClick={handleStillLooking} 
                     disabled={loading}
                   >
@@ -489,32 +536,32 @@ export default function CancelFlowModal({
 
             {step === 'step1Offer' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-4 lg:space-y-6 flex-1">
+                <div className="space-y-5 lg:space-y-6 flex-1">
                   {/* Main Heading */}
-                  <h3 className="text-2xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
+                  <h3 className="text-3xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
                     We built this to help you land the job,<br />
                     this makes it a little easier.
                   </h3>
                   
                   {/* Descriptive Text */}
-                  <p className="text-lg lg:text-2xl font-semibold text-[#41403D] leading-relaxed">
+                  <p className="text-xl lg:text-2xl font-semibold text-[#41403D] leading-relaxed">
                     We've been there and we're here to help you.
                   </p>
                   
                   {/* Offer */}
-                  <div className="bg-[#EBE1FE] p-4 rounded-lg border border-[#9A6FFF] text-center">
-                    <h4 className="text-xl lg:text-3xl font-semibold text-[#41403D] mb-2">
+                  <div className="bg-[#EBE1FE] p-5 rounded-lg border border-[#9A6FFF] text-center">
+                    <h4 className="text-2xl lg:text-3xl font-semibold text-[#41403D] mb-3">
                       Here's <span className="font-bold">50% off</span> until you find a job.
                     </h4>
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <span className="text-xl lg:text-3xl font-bold text-[#9A6FFF]">$12.50</span>
-                      <span className="text-base text-gray-500">/month</span>
-                      <span className="text-base text-gray-400 line-through">$25/month</span>
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <span className="text-2xl lg:text-3xl font-bold text-[#9A6FFF]">$12.50</span>
+                      <span className="text-lg text-gray-500">/month</span>
+                      <span className="text-lg text-gray-400 line-through">$25/month</span>
                     </div>
                     
                     {/* Call to Action Button */}
                     <button 
-                      className="w-full px-6 py-3 bg-[#4ABF71] text-white rounded-lg hover:bg-[#4ABF71]/80 disabled:opacity-50 font-medium transition-colors text-lg mb-2" 
+                      className="w-full px-6 py-4 bg-[#4ABF71] text-white rounded-lg hover:bg-[#4ABF71]/80 disabled:opacity-50 font-medium transition-colors text-xl mb-3" 
                       onClick={handleAcceptStep1Offer} 
                       disabled={loading}
                     >
@@ -522,18 +569,18 @@ export default function CancelFlowModal({
                     </button>
                     
                     {/* Disclaimer */}
-                    <p className="text-sm text-gray-500 text-center italic">
+                    <p className="text-base text-gray-500 text-center italic">
                       You won't be charged until your next billing date.
                     </p>
                   </div>
                   
                   {/* Separation line */}
-                  <div className="border-t border-gray-200 my-4"></div>
+                  <div className="border-t border-gray-200 my-5"></div>
                   
                                       {/* Button container - pushed to bottom */}
                     <div className="mt-auto">
                       <button 
-                        className="w-full px-6 lg:px-8 py-3 lg:py-4 bg-white border border-purple-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-lg lg:text-base" 
+                        className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-white border border-purple-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-xl lg:text-base" 
                         onClick={handleDeclineStep1Offer} 
                         disabled={loading}
                       >
@@ -544,21 +591,19 @@ export default function CancelFlowModal({
               </div>
             )}
 
-
-
             {step === 'step2OfferVariantA' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-6 flex-1">
+                <div className="space-y-7 flex-1">
                   {/* Main Heading */}
-                  <h3 className="text-2xl lg:text-3xl font-semibold text-[#41403D] leading-tight">
+                  <h3 className="text-3xl lg:text-3xl font-semibold text-[#41403D] leading-tight">
                     Help us understand how you were<br />
                     using Migrate Mate.
                   </h3>
                   
                   {/* Survey Questions */}
-                  <div className="space-y-6">
+                  <div className="space-y-7">
                     <div className="space-y-3">
-                      <label className="text-lg font-semibold text-[#41403D]">
+                      <label className="text-xl font-semibold text-[#41403D]">
                         How many roles did you <span className="underline">apply</span> for through Migrate Mate?
                       </label>
                       <div className="flex gap-3">
@@ -567,7 +612,7 @@ export default function CancelFlowModal({
                             key={option}
                             type="button"
                             onClick={() => setSurveyData({...surveyData, rolesApplied: option})}
-                            className={`flex-1 px-6 py-3 rounded-lg border-2 transition-all ${
+                            className={`flex-1 px-6 py-4 rounded-lg border-2 transition-all text-lg ${
                               surveyData.rolesApplied === option
                                 ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
                                 : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
@@ -580,7 +625,7 @@ export default function CancelFlowModal({
                     </div>
 
                     <div className="space-y-3">
-                      <label className="text-lg font-semibold text-[#41403D]">
+                      <label className="text-xl font-semibold text-[#41403D]">
                         How many companies did you <span className="underline">email</span> directly?
                       </label>
                       <div className="flex gap-3">
@@ -589,7 +634,7 @@ export default function CancelFlowModal({
                             key={option}
                             type="button"
                             onClick={() => setSurveyData({...surveyData, companiesEmailed: option})}
-                            className={`flex-1 px-6 py-3 rounded-lg border-2 transition-all ${
+                            className={`flex-1 px-6 py-4 rounded-lg border-2 transition-all text-lg ${
                               surveyData.companiesEmailed === option
                                 ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
                                 : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
@@ -602,7 +647,7 @@ export default function CancelFlowModal({
                     </div>
 
                     <div className="space-y-3">
-                      <label className="text-lg font-semibold text-[#41403D]">
+                      <label className="text-xl font-semibold text-[#41403D]">
                         How many different companies did you <span className="underline">interview</span> with?
                       </label>
                       <div className="flex gap-3">
@@ -611,7 +656,7 @@ export default function CancelFlowModal({
                             key={option}
                             type="button"
                             onClick={() => setSurveyData({...surveyData, companiesInterviewed: option})}
-                            className={`flex-1 px-6 py-3 rounded-lg border-2 transition-all ${
+                            className={`flex-1 px-6 py-4 rounded-lg border-2 transition-all text-lg ${
                               surveyData.companiesInterviewed === option
                                 ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
                                 : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
@@ -660,14 +705,14 @@ export default function CancelFlowModal({
 
                         {step === 'reason' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-6 flex-1">
+                <div className="space-y-7 flex-1">
                   {/* Main Heading */}
-                  <h3 className="text-2xl lg:text-3xl font-semibold text-[#41403D] leading-tight">
+                  <h3 className="text-3xl lg:text-3xl font-semibold text-[#41403D] leading-tight">
                     What's the main reason for cancelling?
                   </h3>
                   
                   {/* Subtitle */}
-                  <p className="text-lg text-[#41403D] leading-relaxed">
+                  <p className="text-xl text-[#41403D] leading-relaxed">
                     Please take a minute to let us know why:
                   </p>
                   
@@ -690,7 +735,7 @@ export default function CancelFlowModal({
                               <div className="w-5 h-5 border-2 border-gray-800 rounded-full flex items-center justify-center">
                               </div>
                             </div>
-                            <span className="text-lg text-gray-600">{option}</span>
+                            <span className="text-xl text-gray-600">{option}</span>
                           </label>
                         </div>
                       ))
@@ -711,7 +756,7 @@ export default function CancelFlowModal({
                               <div className="w-2 h-2 bg-white rounded-full"></div>
                             </div>
                           </div>
-                          <span className="text-lg text-gray-600">{reason}</span>
+                          <span className="text-xl text-gray-600">{reason}</span>
                         </label>
                         
                         {/* Additional details textbox for selected option */}
@@ -865,7 +910,7 @@ export default function CancelFlowModal({
               </div>
             )}
 
-            {step === 'done' && (
+            {step === 'subscriptionCancelled' && (
               <div className="flex flex-col h-full">
                 <div className="flex-1 px-6 lg:px-8 py-6 lg:py-8">
                   <div className="space-y-4">
@@ -908,17 +953,177 @@ export default function CancelFlowModal({
               </div>
             )}
 
+            {step === 'foundJobStep1' && (
+              <div className="flex flex-col h-full">
+                <div className="space-y-6 flex-1">
+                  {/* Main Heading */}
+                  <h3 className="text-3xl lg:text-4xl font-bold text-[#41403D] leading-tight">
+                    Congrats on the new role! 🎉
+                  </h3>
+                  
+                  {/* Survey Questions */}
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        Did you find this job with MigrateMate?*
+                      </label>
+                      <div className="flex gap-3">
+                        {['Yes', 'No'].map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setFoundJobViaMigrateMate(option)}
+                            className={`flex-1 px-6 py-3 rounded-lg border-2 transition-all ${
+                              foundJobViaMigrateMate === option
+                                ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
+                    <div className="space-y-3">
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        How many roles did you apply for through Migrate Mate?*
+                      </label>
+                      <div className="flex gap-3">
+                        {['0', '1-5', '6-20', '20+'].map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setFoundJobRolesApplied(option)}
+                            className={`flex-1 px-6 py-3 rounded-lg border-2 transition-all ${
+                              foundJobRolesApplied === option
+                                ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
+                    <div className="space-y-3">
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        How many companies did you email directly?*
+                      </label>
+                      <div className="flex gap-3">
+                        {['0', '1-5', '6-20', '20+'].map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setFoundJobCompaniesEmailed(option)}
+                            className={`flex-1 px-6 py-3 rounded-lg border-2 transition-all ${
+                              foundJobCompaniesEmailed === option
+                                ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
+                    <div className="space-y-3">
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        How many different companies did you interview with?*
+                      </label>
+                      <div className="flex gap-3">
+                        {['0', '1-2', '3-5', '5+'].map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setFoundJobCompaniesInterviewed(option)}
+                            className={`flex-1 px-6 py-3 rounded-lg border-2 transition-all ${
+                              foundJobCompaniesInterviewed === option
+                                ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Separation line */}
+                <div className="border-t border-gray-200 mt-6"></div>
+                
+                {/* Continue Button - pushed to bottom */}
+                <div className="mt-auto space-y-3">
+                  <button 
+                    className={`w-full px-8 lg:px-10 py-4 lg:py-4 rounded-lg font-medium transition-colors text-lg lg:text-xl ${
+                      foundJobViaMigrateMate && foundJobRolesApplied && foundJobCompaniesEmailed && foundJobCompaniesInterviewed
+                        ? 'bg-[#4ABF71] text-white hover:bg-[#4ABF71]/80'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      // TODO: Handle continue to next step
+                      console.log('Continue to next found job step');
+                    }}
+                    disabled={!foundJobViaMigrateMate || !foundJobRolesApplied || !foundJobCompaniesEmailed || !foundJobCompaniesInterviewed}
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
 
+            {step === 'offerAccepted' && (
+              <div className="flex flex-col h-full">
+                {/* Content */}
+                <div className="flex-1 flex flex-col justify-center px-6 lg:px-8 py-4 lg:py-6">
+                  <div className="space-y-4">
+                    {/* Main Heading */}
+                    <h3 className="text-2xl lg:text-3xl font-bold text-[#41403D] leading-tight">
+                      Great choice, mate!
+                    </h3>
+                    
+                    {/* Sub-heading */}
+                    <p className="text-lg lg:text-xl text-[#41403D] leading-relaxed">
+                      You're still on the path to your dream role. <span className="font-semibold">Let's make it happen together!</span>
+                    </p>
+                    
+                    {/* Subscription Details */}
+                    <div className="space-y-2">
+                      <p className="text-sm lg:text-base text-[#41403D]">
+                        You've got <span className="font-semibold">30 days</span> left on your current plan.
+                      </p>
+                      <p className="text-sm lg:text-base text-[#41403D]">
+                        Starting from <span className="font-semibold">{new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}</span>, your monthly payment will be <span className="font-semibold">$12.50</span>.
+                      </p>
+                      <p className="text-sm lg:text-base text-[#41403D]">
+                        You can cancel anytime before then.
+                      </p>
+                    </div>
+                    
+                    {/* Call to Action Button */}
+                    <div className="pt-3">
+                      <button 
+                        className="w-full px-6 py-3 bg-[#9A6FFF] text-white rounded-lg hover:bg-[#8952fc] disabled:opacity-50 font-medium transition-colors text-lg" 
+                        onClick={onClose}
+                      >
+                        Land your dream role
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
 
 
           </div>
 
-          {/* Right side - Hero image (Desktop only) */}
-          <div className="hidden lg:block w-full lg:w-1/2 lg:flex-1 relative p-4">
+          {/* Desktop: Image banner on the right */}
+          <div className="hidden lg:block w-1/2 p-4">
             <div className="w-full h-full relative rounded-lg overflow-hidden">
               <Image 
                 src={heroSrc} 
