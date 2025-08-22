@@ -1459,47 +1459,64 @@ export default function CancelFlowModal({
 
             {step === 'foundJobCancelledWithHelp' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-6 flex-1">
-                  {/* Main Heading */}
-                  <h3 className="text-3xl lg:text-4xl font-bold text-[#41403D] leading-tight">
-                    Your cancellation's all sorted, mate, no more charges.
-                  </h3>
-                  
-                  {/* Contact Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full overflow-hidden">
-                        <Image 
-                          src={profileSrc} 
-                          alt="Mihailo Bozic" 
-                          width={64} 
-                          height={64}
-                          className="object-cover"
-                        />
-                      </div>
-                      <div>
-                        <h4 className="text-xl font-semibold text-[#41403D]">Mihailo Bozic</h4>
-                        <p className="text-lg text-[#41403D]">mihailo@migratemate.co</p>
+                {/* Content */}
+                <div className="flex-1 flex flex-col justify-center px-6 lg:px-8 py-4 lg:py-6">
+                  <div className="space-y-6">
+                    {/* Success Icon */}
+                    <div className="flex justify-center">
+                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
                       </div>
                     </div>
                     
-                    <p className="text-lg text-[#41403D] leading-relaxed">
-                      I'll be reaching out soon to help with the visa side of things. We've got your back, whether it's questions, paperwork, or just figuring out your options. Keep an eye on your inbox, I'll be in touch shortly.
-                    </p>
+                    {/* Main Heading */}
+                    <div className="text-center">
+                      <h3 className="text-2xl lg:text-3xl font-bold text-[#41403D] leading-tight">
+                        Congratulations on your new role!
+                      </h3>
+                      <p className="text-lg text-[#41403D] mt-2">
+                        We're thrilled you found success with MigrateMate
+                      </p>
+                    </div>
+                    
+                    {/* Contact Info */}
+                    <div className="bg-gray-50 rounded-lg p-6">
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-shrink-0">
+                          <Image 
+                            src={profileSrc} 
+                            alt="Mihailo Bozic" 
+                            width={64} 
+                            height={64}
+                            className="object-cover rounded-full"
+                          />
+                        </div>
+                        <div>
+                          <h4 className="text-xl font-semibold text-[#41403D]">Mihailo Bozic</h4>
+                          <p className="text-lg text-[#41403D]">mihailo@migratemate.co</p>
+                        </div>
+                      </div>
+                      
+                      <p className="text-lg text-[#41403D] leading-relaxed mt-4">
+                        I'll be reaching out soon to help with the visa side of things. We've got your back, whether it's questions, paperwork, or just figuring out your options. Keep an eye on your inbox, I'll be in touch shortly.
+                      </p>
+                    </div>
+                    
+                    {/* Separation line */}
+                    <div className="border-t border-gray-200 mt-6"></div>
+                    
+                    {/* Finish Button - pushed to bottom */}
+                    <div className="mt-auto space-y-3">
+                      <button 
+                        className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#9A6FFF] text-white rounded-lg hover:bg-[#8952fc] font-medium transition-colors text-lg lg:text-xl"
+                        onClick={onClose}
+                      >
+                        Finish
+                      </button>
+                    </div>
                   </div>
-                </div>
-                
-                {/* Separation line */}
-                <div className="border-t border-gray-200 mt-6"></div>
-                
-                {/* Finish Button - pushed to bottom */}
-                <div className="mt-auto space-y-3">
-                  <button 
-                    className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#9A6FFF] text-white rounded-lg hover:bg-[#8952fc] font-medium transition-colors text-lg lg:text-xl"
-                    onClick={onClose}
-                  >
-                    Finish
-                  </button>
                 </div>
               </div>
             )}
@@ -1515,7 +1532,7 @@ export default function CancelFlowModal({
                     </h3>
                     
                     {/* Sub-heading */}
-                    <p className="text-lg lg:text-xl text-[#41403D] leading-relaxed">
+                    <p className="text-lg text-xl text-[#41403D] leading-relaxed">
                       You're still on the path to your dream role. <span className="font-semibold">Let's make it happen together!</span>
                     </p>
                     
@@ -1545,9 +1562,6 @@ export default function CancelFlowModal({
                 </div>
               </div>
             )}
-
-
-
           </div>
 
           {/* Desktop: Image banner on the right */}

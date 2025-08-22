@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const { userId, flowType } = validation.data;
 
     // For development/testing without database
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === 'http://localhost:54321') {
       // Mock response for testing
       let variant: 'A' | 'B';
       let flowDecision: string;

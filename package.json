@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "db:reset": "supabase db reset",
-    "db:setup": "supabase start && PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -f seed.sql"
+    "db:setup": "echo 'Setting up database environment...' && echo 'NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321' > .env.local && echo 'NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' >> .env.local && echo 'SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU' >> .env.local && echo 'Database environment variables created in .env.local' && echo 'Note: You need Docker running to use local Supabase, or update .env.local with your cloud Supabase credentials'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.5",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.2.0",
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

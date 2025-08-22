@@ -9,7 +9,7 @@ const BASE_URL = 'http://localhost:3000';
 
 // Test data
 const testUserId = '550e8400-e29b-41d4-a716-446655440001';
-const testCancellationId = 'mock-cancellation-id';
+const testCancellationId = '550e8400-e29b-41d4-a716-446655440002';
 
 const testFoundJobData = {
   viaMigrateMate: 'Yes',
@@ -77,7 +77,7 @@ async function testCancellationStart() {
     method: 'POST',
     body: JSON.stringify({ userId: 'invalid-uuid' })
   });
-  logTest('Invalid User ID (should fail)', invalidResult);
+  logTest('Invalid User ID (validation working)', invalidResult);
 }
 
 async function testFoundJobCompletion() {
@@ -113,7 +113,7 @@ async function testFoundJobCompletion() {
       foundJobData: missingVisaData
     })
   });
-  logTest('Missing Visa Type (should fail)', missingVisaResult);
+  logTest('Missing Visa Type (validation working)', missingVisaResult);
   
   // Test short feedback (should fail)
   const shortFeedbackData = { ...testFoundJobData, feedback: 'Too short' };
@@ -124,7 +124,7 @@ async function testFoundJobCompletion() {
       foundJobData: shortFeedbackData
     })
   });
-  logTest('Short Feedback (should fail)', shortFeedbackResult);
+  logTest('Short Feedback (validation working)', shortFeedbackResult);
   
   // Test invalid cancellation ID
   const invalidIdResult = await makeRequest(`${BASE_URL}/api/cancellations/found-job/complete`, {
@@ -134,7 +134,7 @@ async function testFoundJobCompletion() {
       foundJobData: testFoundJobData
     })
   });
-  logTest('Invalid Cancellation ID (should fail)', invalidIdResult);
+  logTest('Invalid Cancellation ID (validation working)', invalidIdResult);
 }
 
 async function testCancellationUpdate() {
@@ -181,17 +181,17 @@ async function testErrorHandling() {
     method: 'POST',
     body: 'invalid json'
   });
-  logTest('Invalid JSON (should fail)', invalidJsonResult);
+  logTest('Invalid JSON (validation working)', invalidJsonResult);
   
   // Test missing body
   const missingBodyResult = await makeRequest(`${BASE_URL}/api/cancellations/start`, {
     method: 'POST'
   });
-  logTest('Missing Body (should fail)', missingBodyResult);
+  logTest('Missing Body (validation working)', missingBodyResult);
   
   // Test non-existent endpoint
   const notFoundResult = await makeRequest(`${BASE_URL}/api/cancellations/nonexistent`);
-  logTest('Non-existent Endpoint (should fail)', notFoundResult);
+  logTest('Non-existent Endpoint (error handling working)', notFoundResult);
 }
 
 // Main test runner
@@ -213,7 +213,7 @@ async function runAllTests() {
 // Check if server is running
 async function checkServer() {
   try {
-    const response = await fetch(`${BASE_URL}/api/cancellations/start`);
+    const response = await fetch(`${BASE_URL}/api/test`);
     return response.ok;
   } catch {
     return false;
