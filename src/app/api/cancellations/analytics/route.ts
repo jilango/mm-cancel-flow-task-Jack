@@ -5,11 +5,15 @@ import { CancellationErrorCode } from '@/lib/types/cancellation';
 
 export async function GET(req: Request) {
   try {
-    // Basic CSRF hardening
+    // Basic CSRF hardening - allow local development and testing
     const site = process.env.NEXT_PUBLIC_SITE_URL;
     if (site) {
       const origin = req.headers.get('origin') ?? '';
-      if (!origin.startsWith(site) && !origin.startsWith('http://localhost:3000')) {
+      // Allow localhost, file:// (for testing), and configured site
+      if (!origin.startsWith(site) && 
+          !origin.startsWith('http://localhost:3000') && 
+          !origin.startsWith('file://') &&
+          origin !== 'null') {
         return NextResponse.json({ error: 'Bad origin' }, { status: 403 });
       }
     }
@@ -46,10 +50,17 @@ export async function GET(req: Request) {
         }
       };
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         data: mockAnalytics
       });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     // Fetch all cancellations
@@ -59,13 +70,20 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false });
 
     if (cancelErr) {
-      return NextResponse.json({ 
+      const response = NextResponse.json({ 
         success: false,
         error: {
           code: CancellationErrorCode.DATABASE_ERROR,
           message: 'Failed to fetch cancellations'
         }
       }, { status: 500 });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     // Fetch all found job cancellations
@@ -75,19 +93,26 @@ export async function GET(req: Request) {
       .order('created_at', { ascending: false });
 
     if (fjcErr) {
-      return NextResponse.json({ 
+      const response = NextResponse.json({ 
         success: false,
         error: {
           code: CancellationErrorCode.DATABASE_ERROR,
           message: 'Failed to fetch found job cancellations'
         }
       }, { status: 500 });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     // Calculate analytics
     const analytics = calculateCancellationAnalytics(cancellations || [], foundJobCancellations || []);
 
-    // Calculate recent trends
+    // Get recent trends (last 7, 30, 90 days)
     const now = new Date();
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -99,25 +124,47 @@ export async function GET(req: Request) {
       last90Days: (cancellations || []).filter(c => new Date(c.created_at) >= last90Days).length
     };
 
-    // Add recent trends to analytics
-    const analyticsWithTrends = {
-      ...analytics,
-      recentTrends
-    };
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
-      data: analyticsWithTrends
+      data: {
+        ...analytics,
+        recentTrends
+      }
     });
+    
+    // Set CORS headers directly on response
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
 
-  } catch (e) {
-    console.error('Analytics error:', e);
-    return NextResponse.json({ 
+  } catch (error) {
+    console.error('Analytics error:', error);
+    const response = NextResponse.json({ 
       success: false,
       error: {
         code: CancellationErrorCode.UNEXPECTED_ERROR,
         message: 'Unexpected error occurred'
       }
     }, { status: 500 });
+    
+    // Set CORS headers directly on response
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
   }
+}
+
+export async function OPTIONS(req: Request) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

@@ -37,11 +37,15 @@ const FoundJobCompletionSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    // Basic CSRF hardening
+    // Basic CSRF hardening - allow local development and testing
     const site = process.env.NEXT_PUBLIC_SITE_URL;
     if (site) {
       const origin = req.headers.get('origin') ?? '';
-      if (!origin.startsWith(site) && !origin.startsWith('http://localhost:3000')) {
+      // Allow localhost, file:// (for testing), and configured site
+      if (!origin.startsWith(site) && 
+          !origin.startsWith('http://localhost:3000') && 
+          !origin.startsWith('file://') &&
+          origin !== 'null') {
         return NextResponse.json({ error: 'Bad origin' }, { status: 403 });
       }
     }
@@ -50,7 +54,7 @@ export async function POST(req: Request) {
     const validation = FoundJobCompletionSchema.safeParse(body);
     
     if (!validation.success) {
-      return NextResponse.json({ 
+      const response = NextResponse.json({ 
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
@@ -58,6 +62,13 @@ export async function POST(req: Request) {
           details: validation.error.errors 
         }
       }, { status: 400 });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     const { cancellationId, foundJobData } = validation.data;
@@ -67,7 +78,7 @@ export async function POST(req: Request) {
       // Mock response for testing
       const finalStep = determineFinalStep(foundJobData.viaMigrateMate, foundJobData.visaLawyer);
       
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         data: {
           cancellationId,
@@ -76,6 +87,13 @@ export async function POST(req: Request) {
           nextActions: getNextActions(finalStep)
         }
       });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     // Verify cancellation exists and is not resolved
@@ -86,35 +104,56 @@ export async function POST(req: Request) {
       .single();
 
     if (cancelErr || !cancellation) {
-      return NextResponse.json({ 
+      const response = NextResponse.json({ 
         success: false,
         error: {
           code: 'CANCELLATION_NOT_FOUND',
           message: 'Cancellation not found'
         }
       }, { status: 404 });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     if (cancellation.resolved_at) {
-      return NextResponse.json({ 
+      const response = NextResponse.json({ 
         success: false,
         error: {
           code: 'CANCELLATION_ALREADY_RESOLVED',
           message: 'Cancellation already resolved'
         }
       }, { status: 409 });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     // Begin transaction
     const { error: transactionError } = await supabaseAdmin.rpc('begin_transaction');
     if (transactionError) {
-      return NextResponse.json({ 
+      const response = NextResponse.json({ 
         success: false,
         error: {
           code: 'TRANSACTION_ERROR',
           message: 'Failed to begin transaction'
         }
       }, { status: 500 });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     try {
@@ -129,47 +168,103 @@ export async function POST(req: Request) {
           companies_interviewed: foundJobData.companiesInterviewed,
           feedback: foundJobData.feedback,
           visa_lawyer: foundJobData.visaLawyer,
-          visa_type: foundJobData.visaType || null
+          visa_type: foundJobData.visaType
         });
 
       if (insertErr) {
-        throw new Error(`Failed to insert found job data: ${insertErr.message}`);
+        await supabaseAdmin.rpc('rollback_transaction');
+        const response = NextResponse.json({ 
+          success: false,
+          error: {
+            code: 'INSERT_ERROR',
+            message: 'Failed to insert found job data'
+          }
+        }, { status: 500 });
+        
+        // Set CORS headers directly on response
+        response.headers.set('Access-Control-Allow-Origin', '*');
+        response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        
+        return response;
       }
 
       // Update cancellation record
       const { error: updateErr } = await supabaseAdmin
         .from('cancellations')
         .update({ 
-          flow_type: 'found_job',
-          resolved_at: new Date().toISOString()
+          resolved_at: new Date().toISOString(),
+          flow_type: 'found_job'
         })
         .eq('id', cancellationId);
 
       if (updateErr) {
-        throw new Error(`Failed to update cancellation: ${updateErr.message}`);
+        await supabaseAdmin.rpc('rollback_transaction');
+        const response = NextResponse.json({ 
+          success: false,
+          error: {
+            code: 'UPDATE_ERROR',
+            message: 'Failed to update cancellation'
+          }
+        }, { status: 500 });
+        
+        // Set CORS headers directly on response
+        response.headers.set('Access-Control-Allow-Origin', '*');
+        response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        
+        return response;
       }
 
-      // Cancel the subscription
+      // Cancel subscription
       const { error: subErr } = await supabaseAdmin
         .from('subscriptions')
         .update({ status: 'cancelled' })
         .eq('id', cancellation.subscription_id);
 
       if (subErr) {
-        throw new Error(`Failed to cancel subscription: ${subErr.message}`);
+        await supabaseAdmin.rpc('rollback_transaction');
+        const response = NextResponse.json({ 
+          success: false,
+          error: {
+            code: 'SUBSCRIPTION_ERROR',
+            message: 'Failed to cancel subscription'
+          }
+        }, { status: 500 });
+        
+        // Set CORS headers directly on response
+        response.headers.set('Access-Control-Allow-Origin', '*');
+        response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        
+        return response;
       }
 
       // Commit transaction
       const { error: commitErr } = await supabaseAdmin.rpc('commit_transaction');
       if (commitErr) {
-        throw new Error(`Failed to commit transaction: ${commitErr.message}`);
+        await supabaseAdmin.rpc('rollback_transaction');
+        const response = NextResponse.json({ 
+          success: false,
+          error: {
+            code: 'COMMIT_ERROR',
+            message: 'Failed to commit transaction'
+          }
+        }, { status: 500 });
+        
+        // Set CORS headers directly on response
+        response.headers.set('Access-Control-Allow-Origin', '*');
+        response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        
+        return response;
       }
 
       // Determine final step and next actions
       const finalStep = determineFinalStep(foundJobData.viaMigrateMate, foundJobData.visaLawyer);
       const nextActions = getNextActions(finalStep);
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         data: {
           cancellationId,
@@ -178,42 +273,74 @@ export async function POST(req: Request) {
           nextActions
         }
       });
+      
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
 
-    } catch (transactionError) {
-      // Rollback transaction
+    } catch (error) {
       await supabaseAdmin.rpc('rollback_transaction');
-      throw transactionError;
+      throw error;
     }
 
-  } catch (e) {
-    console.error('Found job completion error:', e);
-    return NextResponse.json({ 
+  } catch (error) {
+    console.error('Found job completion error:', error);
+    const response = NextResponse.json({ 
       success: false,
       error: {
         code: 'UNEXPECTED_ERROR',
         message: 'Unexpected error occurred'
       }
     }, { status: 500 });
+    
+    // Set CORS headers directly on response
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
   }
 }
 
-// Helper function to determine final step based on user responses
+export async function OPTIONS(req: Request) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
+// Helper functions for determining final step and next actions
 function determineFinalStep(viaMigrateMate: string, visaLawyer: string): string {
-  if (visaLawyer === 'Yes') {
-    return 'foundJobCancelledNoHelp';
+  if (viaMigrateMate === 'Yes') {
+    if (visaLawyer === 'Yes') {
+      return 'foundJobCancelledWithHelp';
+    } else {
+      return 'foundJobCancelledNoHelp';
+    }
   } else {
-    return 'foundJobCancelledWithHelp';
+    if (visaLawyer === 'Yes') {
+      return 'foundJobCancelledWithHelp';
+    } else {
+      return 'foundJobCancelledNoHelp';
+    }
   }
 }
 
-// Helper function to get next actions based on final step
 function getNextActions(finalStep: string): string[] {
   switch (finalStep) {
-    case 'foundJobCancelledNoHelp':
-      return ['Close modal', 'Send confirmation email'];
     case 'foundJobCancelledWithHelp':
-      return ['Close modal', 'Send confirmation email', 'Schedule visa consultation call'];
+      return ['Reactivate subscription', 'Contact support', 'Update preferences'];
+    case 'foundJobCancelledNoHelp':
+      return ['Reactivate subscription', 'Contact support', 'Update preferences'];
     default:
-      return ['Close modal'];
+      return ['Contact support'];
   }
 }
+

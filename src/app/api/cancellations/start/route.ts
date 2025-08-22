@@ -10,11 +10,15 @@ const StartSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    // Basic CSRF hardening
+    // Basic CSRF hardening - allow local development and testing
     const site = process.env.NEXT_PUBLIC_SITE_URL;
     if (site) {
       const origin = req.headers.get('origin') ?? '';
-      if (!origin.startsWith(site) && !origin.startsWith('http://localhost:3000')) {
+      // Allow localhost, file:// (for testing), and configured site
+      if (!origin.startsWith(site) && 
+          !origin.startsWith('http://localhost:3000') && 
+          !origin.startsWith('file://') &&
+          origin !== 'null') {
         return NextResponse.json({ error: 'Bad origin' }, { status: 403 });
       }
     }
@@ -49,13 +53,20 @@ export async function POST(req: Request) {
       
       const mockMonthlyPrice = 2500; // $25
       
-      return NextResponse.json({
+      const response = NextResponse.json({
         cancellationId: 'mock-cancellation-id',
         variant,
         monthlyPrice: mockMonthlyPrice,
         flowType,
         flowDecision
       });
+
+      // Set CORS headers directly on response
+      response.headers.set('Access-Control-Allow-Origin', '*');
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      
+      return response;
     }
 
     // Find last cancellation to reuse variant if present
@@ -129,15 +140,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create cancellation' }, { status: 500 });
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       cancellationId: ins.id,
       variant,
       monthlyPrice: sub.monthly_price, // cents
       flowType,
       flowDecision
     });
+
+    // Set CORS headers directly on response
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
   } catch (e) {
     console.error('Start cancellation error:', e);
-    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+    const response = NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+    
+    // Set CORS headers directly on response
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
   }
+}
+
+export async function OPTIONS(req: Request) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
 }

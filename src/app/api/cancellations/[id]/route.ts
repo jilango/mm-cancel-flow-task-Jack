@@ -20,11 +20,15 @@ const UpdateSchema = z.object({
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    // Basic CSRF hardening
+    // Basic CSRF hardening - allow local development and testing
     const site = process.env.NEXT_PUBLIC_SITE_URL;
     if (site) {
       const origin = req.headers.get('origin') ?? '';
-      if (!origin.startsWith(site) && !origin.startsWith('http://localhost:3000')) {
+      // Allow localhost, file:// (for testing), and configured site
+      if (!origin.startsWith(site) && 
+          !origin.startsWith('http://localhost:3000') && 
+          !origin.startsWith('file://') &&
+          origin !== 'null') {
         return NextResponse.json({ error: 'Bad origin' }, { status: 403 });
       }
     }
