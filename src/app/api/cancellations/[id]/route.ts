@@ -6,9 +6,19 @@ const UpdateSchema = z.object({
   reason: z.string().max(500, 'Reason too long').optional().nullable(),
   acceptedDownsell: z.boolean().optional().nullable(),
   details: z.record(z.any()).optional().nullable(),
+  flowType: z.enum(['standard', 'found_job', 'offer_accepted']).optional(),
+  foundJobData: z.object({
+    viaMigrateMate: z.enum(['Yes', 'No']).optional(),
+    rolesApplied: z.enum(['0', '1-5', '6-20', '20+']).optional(),
+    companiesEmailed: z.enum(['0', '1-5', '6-20', '20+']).optional(),
+    companiesInterviewed: z.enum(['0', '1-2', '3-5', '5+']).optional(),
+    feedback: z.string().min(25).max(1000).optional(),
+    visaLawyer: z.enum(['Yes', 'No']).optional(),
+    visaType: z.string().max(100).optional()
+  }).optional()
 });
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Basic CSRF hardening
     const site = process.env.NEXT_PUBLIC_SITE_URL;
@@ -19,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
 
-    const id = params?.id;
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Missing cancellation ID' }, { status: 400 });
     }
@@ -51,6 +61,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (validation.data.details && typeof validation.data.details === 'object') {
       updates.details = validation.data.details;
     }
+    if (validation.data.flowType) {
+      updates.flow_type = validation.data.flowType;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
@@ -59,7 +72,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // Check if cancellation exists and get subscription_id
     const { data: existing, error: getErr } = await supabaseAdmin
       .from('cancellations')
-      .select('id, subscription_id, resolved_at')
+      .select('id, subscription_id, resolved_at, flow_type')
       .eq('id', id)
       .single();
 
@@ -74,7 +87,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // Determine if this update closes the cancellation
     const isClosing = 
       updates.accepted_downsell === true || 
-      (typeof updates.reason === 'string' && updates.reason.trim() !== '');
+      (typeof updates.reason === 'string' && updates.reason.trim() !== '') ||
+      updates.flow_type === 'found_job';
 
     if (isClosing) {
       updates.resolved_at = new Date().toISOString();
@@ -99,6 +113,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
       if (subErr) {
         return NextResponse.json({ error: 'Failed to update subscription' }, { status: 500 });
+      }
+    }
+
+    // If this is a found job cancellation, handle subscription cancellation
+    if (updates.flow_type === 'found_job') {
+      const { error: subErr } = await supabaseAdmin
+        .from('subscriptions')
+        .update({ status: 'cancelled' })
+        .eq('id', existing.subscription_id);
+
+      if (subErr) {
+        return NextResponse.json({ error: 'Failed to cancel subscription' }, { status: 500 });
       }
     }
 

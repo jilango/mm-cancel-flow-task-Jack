@@ -4,7 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { randomInt } from 'crypto';
 
 const StartSchema = z.object({
-  userId: z.string().uuid('Invalid user ID format')
+  userId: z.string().uuid('Invalid user ID format'),
+  flowType: z.enum(['standard', 'found_job']).optional().default('standard')
 });
 
 export async function POST(req: Request) {
@@ -28,18 +29,32 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const { userId } = validation.data;
+    const { userId, flowType } = validation.data;
 
     // For development/testing without database
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       // Mock response for testing
-      const variant: 'A' | 'B' = randomInt(0, 2) === 0 ? 'A' : 'B';
+      let variant: 'A' | 'B';
+      let flowDecision: string;
+      
+      if (flowType === 'found_job') {
+        // For found job flow: 50% chance to show offer vs direct cancellation
+        variant = randomInt(0, 2) === 0 ? 'A' : 'B';
+        flowDecision = randomInt(0, 2) === 0 ? 'step1Offer' : 'subscriptionCancelled';
+      } else {
+        // For standard flow: existing logic
+        variant = randomInt(0, 2) === 0 ? 'A' : 'B';
+        flowDecision = 'step1Offer'; // Standard flow always goes to step 1
+      }
+      
       const mockMonthlyPrice = 2500; // $25
       
       return NextResponse.json({
         cancellationId: 'mock-cancellation-id',
         variant,
         monthlyPrice: mockMonthlyPrice,
+        flowType,
+        flowDecision
       });
     }
 
@@ -61,6 +76,16 @@ export async function POST(req: Request) {
       lastCancel?.downsell_variant === 'A' || lastCancel?.downsell_variant === 'B'
         ? (lastCancel.downsell_variant as 'A' | 'B')
         : randomInt(0, 2) === 0 ? 'A' : 'B';
+
+    // Determine flow decision based on flow type
+    let flowDecision: string;
+    if (flowType === 'found_job') {
+      // For found job flow: 50% chance to show offer vs direct cancellation
+      flowDecision = randomInt(0, 2) === 0 ? 'step1Offer' : 'subscriptionCancelled';
+    } else {
+      // For standard flow: always go to step 1
+      flowDecision = 'step1Offer';
+    }
 
     // Find active subscription for user
     const { data: sub, error: subErr } = await supabaseAdmin
@@ -88,13 +113,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to update subscription status' }, { status: 500 });
     }
 
-    // Insert cancellation record with assigned variant
+    // Insert cancellation record with assigned variant and flow type
     const { data: ins, error: insErr } = await supabaseAdmin
       .from('cancellations')
       .insert({
         user_id: userId,
         subscription_id: sub.id,
         downsell_variant: variant,
+        flow_type: flowType
       })
       .select('id')
       .single();
@@ -107,6 +133,8 @@ export async function POST(req: Request) {
       cancellationId: ins.id,
       variant,
       monthlyPrice: sub.monthly_price, // cents
+      flowType,
+      flowDecision
     });
   } catch (e) {
     console.error('Start cancellation error:', e);
