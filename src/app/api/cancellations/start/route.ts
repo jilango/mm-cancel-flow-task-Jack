@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase';
-import { randomInt } from 'crypto';
+
 
 const StartSchema = z.object({
   userId: z.string().uuid('Invalid user ID format'),
@@ -36,27 +36,39 @@ export async function POST(req: Request) {
     const { userId, flowType } = validation.data;
 
     // For development/testing without database
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === 'http://localhost:54321') {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('mock')) {
       // Mock response for testing
       let variant: 'A' | 'B';
       let flowDecision: string;
       
       if (flowType === 'found_job') {
         // For found job flow: 50% chance to show offer vs direct cancellation
-        variant = randomInt(0, 2) === 0 ? 'A' : 'B';
-        flowDecision = randomInt(0, 2) === 0 ? 'step1Offer' : 'subscriptionCancelled';
+        variant = Math.floor(Math.random() * 2) === 0 ? 'A' : 'B';
+        flowDecision = Math.floor(Math.random() * 2) === 0 ? 'step1Offer' : 'subscriptionCancelled';
       } else {
         // For standard flow: existing logic
-        variant = randomInt(0, 2) === 0 ? 'A' : 'B';
+        variant = Math.floor(Math.random() * 2) === 0 ? 'A' : 'B';
         flowDecision = 'step1Offer'; // Standard flow always goes to step 1
       }
       
       const mockMonthlyPrice = 2500; // $25
       
+      // Calculate discounted price for Variant B in mock mode
+      let discountedPrice = mockMonthlyPrice;
+      if (variant === 'B') {
+        // Apply discount: $25 → $15, $29 → $19
+        if (mockMonthlyPrice === 2500) {
+          discountedPrice = 1500; // $25 → $15
+        } else if (mockMonthlyPrice === 2900) {
+          discountedPrice = 1900; // $29 → $19
+        }
+      }
+      
       const response = NextResponse.json({
         cancellationId: 'mock-cancellation-id',
         variant,
         monthlyPrice: mockMonthlyPrice,
+        discountedPrice: discountedPrice,
         flowType,
         flowDecision
       });
@@ -67,6 +79,59 @@ export async function POST(req: Request) {
       response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       
       return response;
+    }
+
+    // Check if user already has an active cancellation
+    const { data: activeCancel, error: activeErr } = await supabaseAdmin
+      .from('cancellations')
+      .select('id, downsell_variant, flow_type')
+      .eq('user_id', userId)
+      .is('resolved_at', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (activeErr) {
+      return NextResponse.json({ error: 'Failed to fetch active cancellations' }, { status: 500 });
+    }
+
+    // If user has an active cancellation, return it
+    if (activeCancel) {
+      // Determine flow decision based on existing flow type
+      let flowDecision: string;
+      if (activeCancel.flow_type === 'found_job') {
+        flowDecision = Math.floor(Math.random() * 2) === 0 ? 'step1Offer' : 'subscriptionCancelled';
+      } else {
+        flowDecision = 'step1Offer';
+      }
+
+      // Get subscription details for pricing
+      const { data: sub } = await supabaseAdmin
+        .from('subscriptions')
+        .select('monthly_price')
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle();
+
+      // Calculate discounted price for Variant B
+      let discountedPrice = sub?.monthly_price || 2500;
+      if (activeCancel.downsell_variant === 'B') {
+        // Apply discount: $25 → $15, $29 → $19
+        if (discountedPrice === 2500) {
+          discountedPrice = 1500; // $25 → $15
+        } else if (discountedPrice === 2900) {
+          discountedPrice = 1900; // $29 → $19
+        }
+      }
+
+      return NextResponse.json({
+        cancellationId: activeCancel.id,
+        variant: activeCancel.downsell_variant,
+        monthlyPrice: sub?.monthly_price || 2500, // Original price in cents
+        discountedPrice: discountedPrice, // Discounted price for Variant B
+        flowType: activeCancel.flow_type,
+        flowDecision,
+        message: 'Returning existing active cancellation'
+      });
     }
 
     // Find last cancellation to reuse variant if present
@@ -86,24 +151,24 @@ export async function POST(req: Request) {
     const variant: 'A' | 'B' =
       lastCancel?.downsell_variant === 'A' || lastCancel?.downsell_variant === 'B'
         ? (lastCancel.downsell_variant as 'A' | 'B')
-        : randomInt(0, 2) === 0 ? 'A' : 'B';
+        : Math.floor(Math.random() * 2) === 0 ? 'A' : 'B';
 
     // Determine flow decision based on flow type
     let flowDecision: string;
     if (flowType === 'found_job') {
       // For found job flow: 50% chance to show offer vs direct cancellation
-      flowDecision = randomInt(0, 2) === 0 ? 'step1Offer' : 'subscriptionCancelled';
+      flowDecision = Math.floor(Math.random() * 2) === 0 ? 'step1Offer' : 'subscriptionCancelled';
     } else {
       // For standard flow: always go to step 1
       flowDecision = 'step1Offer';
     }
 
-    // Find active subscription for user
+    // Find active or pending cancellation subscription for user
     const { data: sub, error: subErr } = await supabaseAdmin
       .from('subscriptions')
       .select('id, monthly_price, status')
       .eq('user_id', userId)
-      .eq('status', 'active')
+      .in('status', ['active', 'pending_cancellation'])
       .limit(1)
       .maybeSingle();
 
@@ -111,7 +176,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to fetch subscription' }, { status: 500 });
     }
     if (!sub) {
-      return NextResponse.json({ error: 'Active subscription not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Active or pending cancellation subscription not found' }, { status: 404 });
     }
 
     // Mark subscription as pending_cancellation
@@ -137,13 +202,33 @@ export async function POST(req: Request) {
       .single();
 
     if (insErr || !ins) {
+      // Check if it's a unique constraint violation (user already has an active cancellation)
+      if (insErr?.code === '23505') {
+        return NextResponse.json({ 
+          error: 'User already has an active cancellation in progress. Please complete or cancel the existing cancellation first.' 
+        }, { status: 409 });
+      }
+      
+      console.error('Cancellation creation error:', insErr);
       return NextResponse.json({ error: 'Failed to create cancellation' }, { status: 500 });
+    }
+
+    // Calculate discounted price for Variant B
+    let discountedPrice = sub.monthly_price;
+    if (variant === 'B') {
+      // Apply discount: $25 → $15, $29 → $19
+      if (sub.monthly_price === 2500) {
+        discountedPrice = 1500; // $25 → $15
+      } else if (sub.monthly_price === 2900) {
+        discountedPrice = 1900; // $29 → $19
+      }
     }
 
     const response = NextResponse.json({
       cancellationId: ins.id,
       variant,
-      monthlyPrice: sub.monthly_price, // cents
+      monthlyPrice: sub.monthly_price, // Original price in cents
+      discountedPrice: discountedPrice, // Discounted price for Variant B
       flowType,
       flowDecision
     });

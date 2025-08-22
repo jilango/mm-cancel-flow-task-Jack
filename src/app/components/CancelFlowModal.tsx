@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 type Props = {
   isOpen: boolean;
@@ -9,12 +9,14 @@ type Props = {
   userId: string;
   heroSrc?: string;
   profileSrc?: string;
+  onCancellationCreated?: () => void;
 };
 
 type StartResp = {
   cancellationId: string;
   variant: 'A' | 'B';
   monthlyPrice: number; // cents
+  discountedPrice?: number; // cents for Variant B
 };
 
 export default function CancelFlowModal({
@@ -22,11 +24,12 @@ export default function CancelFlowModal({
   onClose,
   userId,
   heroSrc = '/empire-state-compressed.jpg',
-  profileSrc = '/mihailo-profile.jpeg'
+  profileSrc = '/mihailo-profile.jpeg',
+  onCancellationCreated
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'subscriptionCancelled' | 'offerAccepted' | 'foundJobStep1' | 'foundJobStep2' | 'foundJobStep3VariantA' | 'foundJobStep3VariantB' | 'foundJobCancelledNoHelp' | 'foundJobCancelledWithHelp'>('start');
+  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'subscriptionCancelled' | 'offerAccepted' | 'foundJobStep1' | 'foundJobStep2' | 'foundJobStep3VariantA' | 'foundJobStep3VariantB' | 'foundJobCancelledNoHelp' | 'foundJobCancelledWithHelp' | 'downsell'>('start');
 
 
   const [data, setData] = useState<StartResp | null>(null);
@@ -58,6 +61,46 @@ export default function CancelFlowModal({
     companiesInterviewed: ''
   });
   const [cancellationReason, setCancellationReason] = useState('');
+
+  // Complete cancellation when reaching subscriptionCancelled step
+  useEffect(() => {
+    if (step === 'subscriptionCancelled' && data?.cancellationId) {
+      const completeCancellation = async () => {
+        try {
+          await fetch('/api/cancellations/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cancellationId: data.cancellationId })
+          });
+          // Notify parent that cancellation was completed
+          onCancellationCreated?.();
+        } catch (error) {
+          console.error('Failed to complete cancellation:', error);
+        }
+      };
+      
+      completeCancellation();
+    }
+  }, [step, data?.cancellationId, onCancellationCreated]);
+
+  // Handle finish action - complete cancellation and close modal
+  const handleFinish = async () => {
+    if (data?.cancellationId) {
+      try {
+        await fetch('/api/cancellations/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cancellationId: data.cancellationId })
+        });
+        // Notify parent that cancellation was completed
+        onCancellationCreated?.();
+      } catch (error) {
+        console.error('Failed to complete cancellation:', error);
+      }
+    }
+    // Close the modal
+    onClose();
+  };
 
   const offerPrice = useMemo(() => {
     if (!data) return null;
@@ -108,6 +151,8 @@ export default function CancelFlowModal({
       
       const payload = (await res.json()) as StartResp;
       setData(payload);
+      // Notify parent that cancellation was created
+      onCancellationCreated?.();
       // Go to found job survey step 1
       setStep('foundJobStep1');
     } catch (e) {
@@ -120,6 +165,15 @@ export default function CancelFlowModal({
   // Step flow logic function
   const getStepInfo = (stepType: string, stepNumber: number) => {
     switch (stepType) {
+      case 'downsell':
+        return {
+          title: 'Special Offer',
+          progress: [false, false, false], // ○○○ (current step is grey)
+          showBackButton: false,
+          isVariant: true,
+          previousStep: 'start'
+        };
+
       case 'step1Offer':
         return {
           title: 'Step 1 of 3',
@@ -316,14 +370,16 @@ export default function CancelFlowModal({
       const payload = (await res.json()) as StartResp;
       setData(payload);
       
-      // A/B Testing: 50% chance to go to Step 1 Offer or directly to Subscription Cancelled
-      const randomValue = Math.random();
-      if (randomValue < 0.5) {
-        // 50% chance: Go to Step 1 Offer
-        setStep('step1Offer');
+      // Notify parent that cancellation was created
+      onCancellationCreated?.();
+      
+      // A/B Testing: Use variant from API response
+      if (payload.variant === 'B') {
+        // Variant B: Show downsell offer
+        setStep('downsell');
       } else {
-        // 50% chance: Go directly to Subscription Cancelled
-        setStep('subscriptionCancelled');
+        // Variant A: Go directly to reason selection
+        setStep('reason');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong starting cancellation');
@@ -1449,7 +1505,7 @@ export default function CancelFlowModal({
                 <div className="mt-auto space-y-3">
                   <button 
                     className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#9A6FFF] text-white rounded-lg hover:bg-[#8952fc] font-medium transition-colors text-lg lg:text-xl"
-                    onClick={onClose}
+                    onClick={handleFinish}
                   >
                     Finish
                   </button>
@@ -1511,9 +1567,112 @@ export default function CancelFlowModal({
                     <div className="mt-auto space-y-3">
                       <button 
                         className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#9A6FFF] text-white rounded-lg hover:bg-[#8952fc] font-medium transition-colors text-lg lg:text-xl"
-                        onClick={onClose}
+                        onClick={handleFinish}
                       >
                         Finish
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 'downsell' && (
+              <div className="flex flex-col h-full">
+                {/* Content */}
+                <div className="flex-1 flex flex-col justify-center px-6 lg:px-8 py-4 lg:py-6">
+                  <div className="space-y-6">
+                    {/* Main Heading */}
+                    <div className="text-center">
+                      <h3 className="text-2xl lg:text-3xl font-bold text-[#41403D] leading-tight">
+                        Wait! Before you go...
+                      </h3>
+                      <p className="text-lg text-[#41403D] mt-2">
+                        We'd hate to see you leave without trying our special offer
+                      </p>
+                    </div>
+                    
+                    {/* Price Comparison */}
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-6 border border-purple-200">
+                      <div className="text-center space-y-3">
+                        <div className="flex items-center justify-center space-x-4">
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600">Current Price</p>
+                            <p className="text-2xl font-bold text-gray-400 line-through">
+                              ${(data?.monthlyPrice || 0) / 100}
+                            </p>
+                          </div>
+                          <div className="text-2xl text-purple-600">→</div>
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600">Special Offer</p>
+                            <p className="text-3xl font-bold text-green-600">
+                              ${(data?.discountedPrice || 0) / 100}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          That's a savings of ${((data?.monthlyPrice || 0) - (data?.discountedPrice || 0)) / 100} per month!
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="space-y-3">
+                      <button 
+                        onClick={async () => {
+                          try {
+                            setLoading(true);
+                            const response = await fetch('/api/cancellations/downsell', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ 
+                                cancellationId: data?.cancellationId, 
+                                accepted: true 
+                              })
+                            });
+                            if (response.ok) {
+                              // Take user back to profile page
+                              onCancellationCreated?.();
+                              onClose();
+                            }
+                          } catch (error) {
+                            console.error('Failed to accept downsell:', error);
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        disabled={loading}
+                        className="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium transition-colors text-lg"
+                      >
+                        {loading ? 'Processing...' : 'Accept Special Offer'}
+                      </button>
+                      
+                      <button 
+                        onClick={async () => {
+                          try {
+                            setLoading(true);
+                            const response = await fetch('/api/cancellations/downsell', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ 
+                                cancellationId: data?.cancellationId, 
+                                accepted: false 
+                              })
+                            });
+                            if (response.ok) {
+                              // Continue to reason selection
+                              setStep('reason');
+                            }
+                          } catch (error) {
+                            console.error('Failed to decline downsell:', error);
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        disabled={loading}
+                        className="w-full px-6 py-4 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-lg"
+                      >
+                        {loading ? 'Processing...' : 'No thanks, continue cancellation'}
                       </button>
                     </div>
                   </div>

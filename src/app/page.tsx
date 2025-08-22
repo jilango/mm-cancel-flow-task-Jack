@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CancelFlowModal from '@/app/components/CancelFlowModal';
 
 // Mock user data for UI display (using seeded user from DB)
@@ -31,6 +31,10 @@ export default function ProfilePage() {
   
   // State for cancel flow modal
   const [showCancelModal, setShowCancelModal] = useState(false);
+  
+  // State for subscription status
+  const [subscriptionStatus, setSubscriptionStatus] = useState('active');
+  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -43,6 +47,27 @@ export default function ProfilePage() {
 
   const handleClose = () => {
     console.log('Navigate to jobs');
+  };
+
+  // Fetch subscription status on component mount
+  useEffect(() => {
+    fetchSubscriptionStatus();
+  }, []);
+
+  const fetchSubscriptionStatus = async () => {
+    try {
+      const response = await fetch('/api/subscriptions/status?userId=550e8400-e29b-41d4-a716-446655440001');
+      if (response.ok) {
+        const data = await response.json();
+        setSubscriptionStatus(data.status);
+      } else {
+        console.error('Status fetch failed:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching subscription status:', error);
+    } finally {
+      setIsLoadingStatus(false);
+    }
   };
 
   if (loading) {
@@ -106,10 +131,15 @@ export default function ProfilePage() {
       {/* Cancel Flow Modal */}
       <CancelFlowModal
         isOpen={showCancelModal}
-        onClose={() => setShowCancelModal(false)}
+        onClose={() => {
+          setShowCancelModal(false);
+          // Refresh subscription status when modal closes
+          fetchSubscriptionStatus();
+        }}
         userId={mockUser.id}
         heroSrc="/empire-state-compressed.jpg"
         profileSrc="/mihailo-profile.jpeg"
+        onCancellationCreated={fetchSubscriptionStatus}
       />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -163,15 +193,62 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium text-gray-900">Subscription status</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {mockSubscriptionData.status === 'active' && !mockSubscriptionData.isTrialSubscription && !mockSubscriptionData.cancelAtPeriodEnd && (
+                    {subscriptionStatus === 'active' && (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-green-50 text-green-700 border border-green-200">
                         Active
+                      </span>
+                    )}
+                    {subscriptionStatus === 'pending_cancellation' && (
+                      <div className="inline-flex items-center space-x-1">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-yellow-50 text-yellow-700 border border-yellow-200">
+                          Pending Cancellation
+                        </span>
+                        <button
+                          onClick={async () => {
+                            try {
+                              setIsLoadingStatus(true);
+                              const response = await fetch('/api/subscriptions/renew', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: mockUser.id })
+                              });
+                              if (response.ok) {
+                                // Add a small delay to ensure the API has processed the update
+                                setTimeout(async () => {
+                                  await fetchSubscriptionStatus();
+                                }, 100);
+                              } else {
+                                console.error('Renew failed:', response.status);
+                                setIsLoadingStatus(false);
+                              }
+                            } catch (error) {
+                              console.error('Failed to renew subscription:', error);
+                              setIsLoadingStatus(false);
+                            }
+                          }}
+                          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-colors"
+                          title="Cancel pending cancellation"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    {subscriptionStatus === 'cancelled' && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-red-50 text-red-700 border border-red-200">
+                        Cancelled
+                      </span>
+                    )}
+                    {isLoadingStatus && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-gray-50 text-gray-700 border border-gray-200">
+                        Loading...
                       </span>
                     )}
                   </div>
                 </div>
 
-                {mockSubscriptionData.status === 'active' && !mockSubscriptionData.isTrialSubscription && !mockSubscriptionData.cancelAtPeriodEnd && (
+                {(subscriptionStatus === 'active' || subscriptionStatus === 'pending_cancellation') && (
                   <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0">
@@ -260,15 +337,60 @@ export default function ProfilePage() {
                       </svg>
                       <span className="text-sm font-medium">View billing history</span>
                     </button>
+
                     <button
                       onClick={() => setShowCancelModal(true)}
-                      className="inline-flex items-center justify-center w-full px-4 py-3 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all duration-200 shadow-sm group"
+                      disabled={subscriptionStatus === 'cancelled'}
+                      className={`inline-flex items-center justify-center w-full px-4 py-3 rounded-lg transition-all duration-200 shadow-sm group ${
+                        subscriptionStatus === 'cancelled'
+                          ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300'
+                      }`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
                       <span className="text-sm font-medium">Cancel Migrate Mate</span>
                     </button>
+
+                    {/* Renew Subscription Button - Only visible when status is cancelled */}
+                    {subscriptionStatus === 'cancelled' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            setIsLoadingStatus(true);
+                            const response = await fetch('/api/subscriptions/renew', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ userId: mockUser.id })
+                            });
+                            if (response.ok) {
+                              // Add a small delay to ensure the API has processed the update
+                              setTimeout(async () => {
+                                await fetchSubscriptionStatus();
+                              }, 100);
+                            } else {
+                              console.error('Renew failed:', response.status);
+                              setIsLoadingStatus(false);
+                            }
+                          } catch (error) {
+                            console.error('Failed to renew subscription:', error);
+                            setIsLoadingStatus(false);
+                          }
+                        }}
+                        disabled={isLoadingStatus}
+                        className={`inline-flex items-center justify-center w-full px-4 py-3 rounded-lg transition-all duration-200 shadow-sm ${
+                          isLoadingStatus
+                            ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
+                            : 'bg-green-600 border border-green-600 text-white hover:bg-green-700 hover:border-green-700'
+                        }`}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span className="text-sm font-medium">Renew Subscription</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
