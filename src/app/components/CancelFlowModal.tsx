@@ -26,7 +26,7 @@ export default function CancelFlowModal({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'subscriptionCancelled' | 'offerAccepted' | 'foundJobStep1'>('start');
+  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'subscriptionCancelled' | 'offerAccepted' | 'foundJobStep1' | 'foundJobStep2' | 'foundJobStep3VariantA' | 'foundJobStep3VariantB' | 'foundJobCancelledNoHelp' | 'foundJobCancelledWithHelp'>('start');
 
 
   const [data, setData] = useState<StartResp | null>(null);
@@ -46,8 +46,11 @@ export default function CancelFlowModal({
   const [foundJobViaMigrateMate, setFoundJobViaMigrateMate] = useState<string>('');
   const [foundJobRolesApplied, setFoundJobRolesApplied] = useState<string>('');
   const [foundJobCompaniesEmailed, setFoundJobCompaniesEmailed] = useState<string>('');
-  const [foundJobCompaniesInterviewed, setFoundJobCompaniesInterviewed] = useState<string>('');
-
+    const [foundJobCompaniesInterviewed, setFoundJobCompaniesInterviewed] = useState<string>('');
+  const [foundJobFeedback, setFoundJobFeedback] = useState<string>('');
+  const [foundJobVisaLawyer, setFoundJobVisaLawyer] = useState<string>('');
+  const [foundJobVisaType, setFoundJobVisaType] = useState<string>('');
+  
   const [acceptedOffer, setAcceptedOffer] = useState<boolean | null>(null);
   const [surveyData, setSurveyData] = useState({
     rolesApplied: '',
@@ -182,6 +185,51 @@ export default function CancelFlowModal({
           previousStep: 'start'
         };
       
+      case 'foundJobStep2':
+        return {
+          title: 'Step 2 of 3',
+          progress: [true, false, false], // ●○○
+          showBackButton: true,
+          isVariant: false,
+          previousStep: 'foundJobStep1'
+        };
+      
+      case 'foundJobStep3VariantA':
+        return {
+          title: 'Step 3 of 3',
+          progress: [true, true, false], // ●●○
+          showBackButton: true,
+          isVariant: true,
+          previousStep: 'foundJobStep2'
+        };
+      
+      case 'foundJobStep3VariantB':
+        return {
+          title: 'Step 3 of 3',
+          progress: [true, true, false], // ●●○
+          showBackButton: true,
+          isVariant: true,
+          previousStep: 'foundJobStep2'
+        };
+      
+      case 'foundJobCancelledNoHelp':
+        return {
+          title: 'Subscription Cancelled',
+          progress: [true, true, true], // ●●●
+          showBackButton: false,
+          isVariant: false,
+          previousStep: null
+        };
+      
+      case 'foundJobCancelledWithHelp':
+        return {
+          title: 'Subscription Cancelled',
+          progress: [true, true, true], // ●●●
+          showBackButton: false,
+          isVariant: false,
+          previousStep: null
+        };
+      
       default:
         return {
           title: 'Step 1 of 3',
@@ -203,6 +251,13 @@ export default function CancelFlowModal({
       return;
     }
     
+    // Special handling for Step 3 variants - clear selection and stay on same step
+    if ((step === 'foundJobStep3VariantA' || step === 'foundJobStep3VariantB') && foundJobVisaLawyer) {
+      setFoundJobVisaLawyer('');
+      setFoundJobVisaType('');
+      return;
+    }
+    
     // Normal navigation to previous step
     if (currentStepInfo.previousStep) {
       setStep(currentStepInfo.previousStep as any);
@@ -217,6 +272,11 @@ export default function CancelFlowModal({
       case 'reason': return 2;
       case 'foundDetails': return 2;
       case 'foundJobStep1': return 0;
+      case 'foundJobStep2': return 1;
+      case 'foundJobStep3VariantA': return 2;
+      case 'foundJobStep3VariantB': return 2;
+      case 'foundJobCancelledNoHelp': return 3;
+      case 'foundJobCancelledWithHelp': return 3;
       default: return 0;
     }
   };
@@ -1065,12 +1125,380 @@ export default function CancelFlowModal({
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     }`}
                     onClick={() => {
-                      // TODO: Handle continue to next step
-                      console.log('Continue to next found job step');
+                      setStep('foundJobStep2');
                     }}
                     disabled={!foundJobViaMigrateMate || !foundJobRolesApplied || !foundJobCompaniesEmailed || !foundJobCompaniesInterviewed}
                   >
                     Continue
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 'foundJobStep2' && (
+              <div className="flex flex-col h-full">
+                <div className="space-y-6 flex-1">
+                  {/* Main Heading */}
+                  <h3 className="text-3xl lg:text-4xl font-bold text-[#41403D] leading-tight">
+                    What's one thing you wish we could've helped you with?
+                  </h3>
+                  
+                  {/* Description */}
+                  <p className="text-lg text-[#41403D] leading-relaxed">
+                    We're always looking to improve, your thoughts can help us make Migrate Mate more useful for others.
+                  </p>
+                  
+                  {/* Text Input */}
+                  <div className="space-y-2">
+                    <textarea
+                      value={foundJobFeedback}
+                      onChange={(e) => setFoundJobFeedback(e.target.value)}
+                      placeholder="Min 25 characters (0/25)"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#9A6FFF] focus:border-transparent"
+                      rows={6}
+                      minLength={25}
+                    />
+                    <div className="text-sm text-gray-500 text-right">
+                      Min 25 characters ({foundJobFeedback.length}/25)
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Separation line */}
+                <div className="border-t border-gray-200 mt-6"></div>
+                
+                {/* Continue Button - pushed to bottom */}
+                <div className="mt-auto space-y-3">
+                  <button 
+                    className={`w-full px-8 lg:px-10 py-4 lg:py-4 rounded-lg font-medium transition-colors text-lg lg:text-xl ${
+                      foundJobFeedback.length >= 25
+                        ? 'bg-[#4ABF71] text-white hover:bg-[#4ABF71]/80'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      console.log('Step 2 continue button clicked');
+                      console.log('foundJobViaMigrateMate:', foundJobViaMigrateMate);
+                      console.log('foundJobFeedback length:', foundJobFeedback.length);
+                      
+                      // Navigate to Step 3 variant based on whether they found job with MigrateMate
+                      if (foundJobViaMigrateMate === 'Yes') {
+                        console.log('Navigating to Variant A');
+                        setStep('foundJobStep3VariantA');
+                      } else {
+                        console.log('Navigating to Variant B');
+                        setStep('foundJobStep3VariantB');
+                      }
+                    }}
+                    disabled={foundJobFeedback.length < 25}
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 'foundJobStep3VariantA' && (
+              <div className="flex flex-col h-full">
+                <div className="space-y-6 flex-1">
+                  {/* Main Heading */}
+                  <h3 className="text-3xl lg:text-4xl font-bold text-[#41403D] leading-tight">
+                    We helped you land the job, now let's help you secure your visa.
+                  </h3>
+                  
+                  {/* Question */}
+                  <div className="space-y-3">
+                    <label className="text-lg font-semibold text-[#41403D]">
+                      Is your company providing an immigration lawyer to help with your visa?*
+                    </label>
+                    {!foundJobVisaLawyer ? (
+                      <div className="space-y-3">
+                        {['Yes', 'No'].map((option) => (
+                          <label key={option} className="flex items-center gap-3 cursor-pointer">
+                            <div className="relative">
+                              <input
+                                type="radio"
+                                name="visaLawyer"
+                                value={option}
+                                checked={foundJobVisaLawyer === option}
+                                onChange={() => setFoundJobVisaLawyer(option)}
+                                className="sr-only"
+                              />
+                              <div className={`w-5 h-5 border-2 rounded-full flex items-center justify-center ${
+                                foundJobVisaLawyer === option
+                                  ? 'border-gray-800'
+                                  : 'border-gray-300'
+                              }`}>
+                                {foundJobVisaLawyer === option && (
+                                  <div className="w-2.5 h-2.5 bg-gray-800 rounded-full"></div>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[#41403D] font-medium">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-gray-800 rounded-full flex items-center justify-center">
+                          <div className="w-2.5 h-2.5 bg-gray-800 rounded-full"></div>
+                        </div>
+                        <span className="text-[#41403D] font-medium">{foundJobVisaLawyer}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Conditional Text Input for "Yes" */}
+                  {foundJobVisaLawyer === 'Yes' && (
+                    <div className="space-y-3">
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        What visa will you be applying for?*
+                      </label>
+                      <input
+                        type="text"
+                        value={foundJobVisaType}
+                        onChange={(e) => setFoundJobVisaType(e.target.value)}
+                        placeholder="Enter visa type"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9A6FFF] focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Conditional Text Input for "No" */}
+                  {foundJobVisaLawyer === 'No' && (
+                    <div className="space-y-3">
+                      <p className="text-lg text-[#41403D] leading-relaxed">
+                        We can connect you with one of our trusted partners.
+                      </p>
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        Which visa would you like to apply for?*
+                      </label>
+                      <input
+                        type="text"
+                        value={foundJobVisaType}
+                        onChange={(e) => setFoundJobVisaType(e.target.value)}
+                        placeholder="Enter visa type"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9A6FFF] focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Separation line */}
+                <div className="border-t border-gray-200 mt-6"></div>
+                
+                {/* Complete Cancellation Button - pushed to bottom */}
+                <div className="mt-auto space-y-3">
+                  <button 
+                    className={`w-full px-8 lg:px-10 py-4 lg:py-4 rounded-lg font-medium transition-colors text-lg lg:text-xl ${
+                      foundJobVisaLawyer && (foundJobVisaLawyer === 'No' || foundJobVisaType.trim())
+                        ? 'bg-[#4ABF71] text-white hover:bg-[#4ABF71]/80'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      // Navigate to final cancellation state based on visa lawyer selection
+                      if (foundJobVisaLawyer === 'Yes') {
+                        setStep('foundJobCancelledNoHelp');
+                      } else {
+                        setStep('foundJobCancelledWithHelp');
+                      }
+                    }}
+                    disabled={!foundJobVisaLawyer || (foundJobVisaLawyer === 'Yes' && !foundJobVisaType.trim())}
+                  >
+                    Complete cancellation
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 'foundJobStep3VariantB' && (
+              <div className="flex flex-col h-full">
+                <div className="space-y-6 flex-1">
+                  {/* Main Heading */}
+                  <h3 className="text-3xl lg:text-4xl font-bold text-[#41403D] leading-tight">
+                    You landed the job! That's what we live for.
+                  </h3>
+                  
+                  {/* Descriptive Text */}
+                  <p className="text-lg text-[#41403D] leading-relaxed">
+                    Even if it wasn't through Migrate Mate, let us help get your visa sorted.
+                  </p>
+                  
+                  {/* Question */}
+                  <div className="space-y-3">
+                    <label className="text-lg font-semibold text-[#41403D]">
+                      Is your company providing an immigration lawyer to help with your visa?
+                    </label>
+                    {!foundJobVisaLawyer ? (
+                      <div className="space-y-3">
+                        {['Yes', 'No'].map((option) => (
+                          <label key={option} className="flex items-center gap-3 cursor-pointer">
+                            <div className="relative">
+                              <input
+                                type="radio"
+                                name="visaLawyer"
+                                value={option}
+                                checked={foundJobVisaLawyer === option}
+                                onChange={() => setFoundJobVisaLawyer(option)}
+                                className="sr-only"
+                              />
+                              <div className={`w-5 h-5 border-2 rounded-full flex items-center justify-center ${
+                                foundJobVisaLawyer === option
+                                  ? 'border-gray-800'
+                                  : 'border-gray-300'
+                              }`}>
+                                {foundJobVisaLawyer === option && (
+                                  <div className="w-2.5 h-2.5 bg-gray-800 rounded-full"></div>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[#41403D] font-medium">{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 border-2 border-gray-800 rounded-full flex items-center justify-center">
+                          <div className="w-2.5 h-2.5 bg-gray-800 rounded-full"></div>
+                        </div>
+                        <span className="text-[#41403D] font-medium">{foundJobVisaLawyer}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Conditional Text Input for "Yes" */}
+                  {foundJobVisaLawyer === 'Yes' && (
+                    <div className="space-y-3">
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        What visa will you be applying for?*
+                      </label>
+                      <input
+                        type="text"
+                        value={foundJobVisaType}
+                        onChange={(e) => setFoundJobVisaType(e.target.value)}
+                        placeholder="Enter visa type"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9A6FFF] focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Conditional Text Input for "No" */}
+                  {foundJobVisaLawyer === 'No' && (
+                    <div className="space-y-3">
+                      <p className="text-lg text-[#41403D] leading-relaxed">
+                        We can connect you with one of our trusted partners.
+                      </p>
+                      <label className="text-lg font-semibold text-[#41403D]">
+                        Which visa would you like to apply for?*
+                      </label>
+                      <input
+                        type="text"
+                        value={foundJobVisaType}
+                        onChange={(e) => setFoundJobVisaType(e.target.value)}
+                        placeholder="Enter visa type"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#9A6FFF] focus:border-transparent"
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Separation line */}
+                <div className="border-t border-gray-200 mt-6"></div>
+                
+                {/* Complete Cancellation Button - pushed to bottom */}
+                <div className="mt-auto space-y-3">
+                  <button 
+                    className={`w-full px-8 lg:px-10 py-4 lg:py-4 rounded-lg font-medium transition-colors text-lg lg:text-xl ${
+                      foundJobVisaLawyer && (foundJobVisaLawyer === 'No' || foundJobVisaType.trim())
+                        ? 'bg-[#4ABF71] text-white hover:bg-[#4ABF71]/80'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    onClick={() => {
+                      // Navigate to final cancellation state based on visa lawyer selection
+                      if (foundJobVisaLawyer === 'Yes') {
+                        setStep('foundJobCancelledNoHelp');
+                      } else {
+                        setStep('foundJobCancelledWithHelp');
+                      }
+                    }}
+                    disabled={!foundJobVisaLawyer || (foundJobVisaLawyer === 'Yes' && !foundJobVisaType.trim())}
+                  >
+                    Complete cancellation
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 'foundJobCancelledNoHelp' && (
+              <div className="flex flex-col h-full">
+                <div className="space-y-6 flex-1">
+                  {/* Main Heading */}
+                  <h3 className="text-3xl lg:text-4xl font-bold text-[#41403D] leading-tight">
+                    All done, your cancellation's been processed.
+                  </h3>
+                  
+                  {/* Body Text */}
+                  <p className="text-lg text-[#41403D] leading-relaxed">
+                    We're stoked to hear you've landed a job and sorted your visa. Big congrats from the team. 🙌
+                  </p>
+                </div>
+                
+                {/* Separation line */}
+                <div className="border-t border-gray-200 mt-6"></div>
+                
+                {/* Finish Button - pushed to bottom */}
+                <div className="mt-auto space-y-3">
+                  <button 
+                    className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#9A6FFF] text-white rounded-lg hover:bg-[#8952fc] font-medium transition-colors text-lg lg:text-xl"
+                    onClick={onClose}
+                  >
+                    Finish
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 'foundJobCancelledWithHelp' && (
+              <div className="flex flex-col h-full">
+                <div className="space-y-6 flex-1">
+                  {/* Main Heading */}
+                  <h3 className="text-3xl lg:text-4xl font-bold text-[#41403D] leading-tight">
+                    Your cancellation's all sorted, mate, no more charges.
+                  </h3>
+                  
+                  {/* Contact Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-full overflow-hidden">
+                        <Image 
+                          src={profileSrc} 
+                          alt="Mihailo Bozic" 
+                          width={64} 
+                          height={64}
+                          className="object-cover"
+                        />
+                      </div>
+                      <div>
+                        <h4 className="text-xl font-semibold text-[#41403D]">Mihailo Bozic</h4>
+                        <p className="text-lg text-[#41403D]">mihailo@migratemate.co</p>
+                      </div>
+                    </div>
+                    
+                    <p className="text-lg text-[#41403D] leading-relaxed">
+                      I'll be reaching out soon to help with the visa side of things. We've got your back, whether it's questions, paperwork, or just figuring out your options. Keep an eye on your inbox, I'll be in touch shortly.
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Separation line */}
+                <div className="border-t border-gray-200 mt-6"></div>
+                
+                {/* Finish Button - pushed to bottom */}
+                <div className="mt-auto space-y-3">
+                  <button 
+                    className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#9A6FFF] text-white rounded-lg hover:bg-[#8952fc] font-medium transition-colors text-lg lg:text-xl"
+                    onClick={onClose}
+                  >
+                    Finish
                   </button>
                 </div>
               </div>
