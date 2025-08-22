@@ -33,8 +33,11 @@ export default function CancelFlowModal({
 
   // Form state
   const [reason, setReason] = useState('');
-  const [willingPrice, setWillingPrice] = useState<number | ''>('');
+  const [willingPrice, setWillingPrice] = useState<string>('');
   const [otherText, setOtherText] = useState('');
+  const [platformDetails, setPlatformDetails] = useState('');
+  const [jobsDetails, setJobsDetails] = useState('');
+  const [moveDetails, setMoveDetails] = useState('');
   const [foundViaUs, setFoundViaUs] = useState<'yes' | 'no' | ''>('');
   const [visaType, setVisaType] = useState<'H-1B' | 'OPT' | 'Green card' | 'Citizen' | 'Other' | ''>('');
   const [foundNotes, setFoundNotes] = useState('');
@@ -55,6 +58,26 @@ export default function CancelFlowModal({
   }, [data]);
 
   const pretty = (cents: number) => `$${(cents / 100).toFixed(0)}`;
+
+  // Check if any text box has content
+  const hasTextInTextBox = () => {
+    if (!reason) return false;
+    
+    switch (reason) {
+      case 'Too expensive':
+        return willingPrice.trim() !== '';
+      case 'Platform not helpful':
+        return platformDetails.trim() !== '';
+      case 'Not enough relevant jobs':
+        return jobsDetails.trim() !== '';
+      case 'Decided not to move':
+        return moveDetails.trim() !== '';
+      case 'Other':
+        return otherText.trim() !== '';
+      default:
+        return false;
+    }
+  };
 
   const clearError = () => setError(null);
 
@@ -114,7 +137,7 @@ export default function CancelFlowModal({
       case 'reason':
         return {
           title: 'Step 3 of 3',
-          progress: [true, true, true], // ●●● (all steps completed, step 3 current)
+          progress: [true, true, false], // ●●○ (steps 1&2 completed, step 3 current)
           showBackButton: true,
           isVariant: false,
           previousStep: 'step2OfferVariantA'
@@ -131,7 +154,7 @@ export default function CancelFlowModal({
       
       case 'done':
         return {
-          title: 'Complete',
+          title: 'Completed',
           progress: [true, true, true], // ●●●
           showBackButton: false,
           isVariant: false,
@@ -152,6 +175,14 @@ export default function CancelFlowModal({
   // Navigation helper function
   const goToPreviousStep = () => {
     const currentStepInfo = getStepInfo(step, 1);
+    
+    // Special handling for Step 3 (reason) - clear selection and stay on same step
+    if (step === 'reason' && reason) {
+      setReason('');
+      return;
+    }
+    
+    // Normal navigation to previous step
     if (currentStepInfo.previousStep) {
       setStep(currentStepInfo.previousStep as any);
     }
@@ -341,7 +372,7 @@ export default function CancelFlowModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start lg:items-center justify-center pt-16 lg:pt-0 p-0 lg:p-4">
       <div className="absolute inset-0 bg-gray-800/50" onClick={onClose} />
-      <div className="relative w-full max-w-none lg:max-w-7xl bg-white rounded-t-lg lg:rounded-lg shadow-xl overflow-hidden h-full lg:h-auto">
+      <div className="relative w-full max-w-none lg:max-w-7xl bg-white rounded-t-lg lg:rounded-lg shadow-xl overflow-hidden flex flex-col h-full lg:h-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="w-24">
@@ -357,17 +388,17 @@ export default function CancelFlowModal({
               </button>
             )}
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-8">
             <h2 className="text-xl font-semibold text-gray-800 text-center whitespace-nowrap">
               Subscription Cancellation
             </h2>
             {step !== 'start' && (
-              <div className="flex items-center gap-3">
-                <div className="flex gap-2">
+              <div className="flex items-center gap-4">
+                <div className="flex gap-3">
                   {getStepInfo(step, 1).progress.map((isCompleted, index) => (
                     <div 
                       key={index}
-                      className={`w-8 h-2 rounded-full ${
+                      className={`w-10 h-3 rounded-full ${
                         isCompleted ? 'bg-green-500' : index === getCurrentStepIndex(step) ? 'bg-gray-500' : 'bg-gray-200'
                       }`}
                     />
@@ -391,10 +422,10 @@ export default function CancelFlowModal({
         </div>
 
         {/* Main content area */}
-        <div className="flex flex-col lg:flex-row lg:gap-0 h-full lg:h-auto">
+        <div className="flex flex-col lg:flex-row lg:gap-0 min-h-0 flex-1">
           {/* Mobile: Image banner above content */}
-          <div className="lg:hidden w-full px-4 pt-1">
-            <div className="w-full h-60 relative rounded-lg overflow-hidden">
+          <div className="lg:hidden w-full px-4 pt-2">
+            <div className="w-full h-48 relative rounded-lg overflow-hidden">
               <Image 
                 src={heroSrc} 
                 alt="New York City skyline" 
@@ -407,7 +438,7 @@ export default function CancelFlowModal({
           </div>
 
           {/* Content area */}
-          <div className="flex-1 px-6 pt-3 pb-0 lg:py-6 flex flex-col overflow-y-auto">
+          <div className="flex-1 px-6 pt-3 pb-4 lg:py-6 flex flex-col min-h-0">
             {/* Error display */}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg" aria-live="polite">
@@ -416,37 +447,37 @@ export default function CancelFlowModal({
             )}
 
             {step === 'start' && (
-              <div className="space-y-4 lg:space-y-6">
+              <div className="space-y-4 lg:space-y-6 flex-1">
                 {/* Greeting */}
-                <h3 className="text-4xl lg:text-3xl font-semibold text-gray-800 leading-tight">
+                <h3 className="text-2xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
                   Hey mate,<br />
                   Quick one before you go.
                 </h3>
                 
                 {/* Question */}
-                <h3 className="text-4xl lg:text-3xl font-semibold italic text-gray-800 leading-tight">
+                <h3 className="text-2xl lg:text-4xl font-semibold italic text-[#41403D] leading-tight">
                   Have you found a job yet?
                 </h3>
                 
                 {/* Descriptive text */}
-                <p className="text-xl lg:text-base text-gray-800 leading-relaxed">
+                <p className="text-base lg:text-xl text-[#41403D] leading-relaxed">
                   Whatever your answer, we just want to help you take the next step. With visa support, or by hearing how we can do better.
                 </p>
                 
                 {/* Separation line */}
-                <div className="border-t border-gray-200"></div>
+                <div className="border-t border-gray-200 mt-4"></div>
                 
                 {/* Buttons */}
-                <div className="space-y-3">
+                <div className="space-y-3 mt-auto">
                   <button 
-                    className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-xl lg:text-base" 
+                    className="w-full px-6 lg:px-8 py-3 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-lg lg:text-xl" 
                     onClick={handleFoundJob} 
                     disabled={loading}
                   >
                     {loading ? 'Loading…' : 'Yes, I\'ve found a job'}
                   </button>
                   <button 
-                    className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors text-xl lg:text-base" 
+                    className="w-full px-6 lg:px-8 py-3 lg:py-4 bg-white border border-gray-300 text-[#41403D] rounded-lg hover:bg-gray-200 disabled:opacity-50 font-medium transition-colors text-lg lg:text-xl" 
                     onClick={handleStillLooking} 
                     disabled={loading}
                   >
@@ -458,35 +489,32 @@ export default function CancelFlowModal({
 
             {step === 'step1Offer' && (
               <div className="flex flex-col h-full">
-
-
-
-                <div className="space-y-4 lg:space-y-6">
+                <div className="space-y-4 lg:space-y-6 flex-1">
                   {/* Main Heading */}
-                  <h3 className="text-4xl lg:text-4xl font-semibold text-gray-800 leading-tight">
-                    We built this to help you land the job,
+                  <h3 className="text-2xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
+                    We built this to help you land the job,<br />
                     this makes it a little easier.
                   </h3>
                   
                   {/* Descriptive Text */}
-                  <h3 className="text-3xl lg:text-2xl font-semibold text-gray-700 leading-relaxed">
+                  <p className="text-lg lg:text-2xl font-semibold text-[#41403D] leading-relaxed">
                     We've been there and we're here to help you.
-                  </h3>
+                  </p>
                   
                   {/* Offer */}
-                  <div className="bg-[#EBE1FE] p-6 rounded-lg border border-[#9A6FFF] text-center">
-                    <h4 className="text-3xl lg:text-3xl font-semibold text-gray-800 mb-2">
-                      Here's <span className="underline font-bold">50% off</span> until you find a job.
+                  <div className="bg-[#EBE1FE] p-4 rounded-lg border border-[#9A6FFF] text-center">
+                    <h4 className="text-xl lg:text-3xl font-semibold text-[#41403D] mb-2">
+                      Here's <span className="font-bold">50% off</span> until you find a job.
                     </h4>
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                      <span className="text-3xl lg:text-3xl font-bold text-[#9A6FFF]">$12.50</span>
-                      <span className="text-lg lg:text-lg text-gray-500">/month</span>
-                      <span className="text-lg lg:text-lg text-gray-400 line-through">$25/month</span>
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <span className="text-xl lg:text-3xl font-bold text-[#9A6FFF]">$12.50</span>
+                      <span className="text-base text-gray-500">/month</span>
+                      <span className="text-base text-gray-400 line-through">$25/month</span>
                     </div>
                     
                     {/* Call to Action Button */}
                     <button 
-                      className="w-full px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 font-medium transition-colors text-lg mb-3" 
+                      className="w-full px-6 py-3 bg-[#4ABF71] text-white rounded-lg hover:bg-[#4ABF71]/80 disabled:opacity-50 font-medium transition-colors text-lg mb-2" 
                       onClick={handleAcceptStep1Offer} 
                       disabled={loading}
                     >
@@ -495,21 +523,23 @@ export default function CancelFlowModal({
                     
                     {/* Disclaimer */}
                     <p className="text-sm text-gray-500 text-center italic">
-                      You wont be charged until your next billing date.
+                      You won't be charged until your next billing date.
                     </p>
                   </div>
                   
                   {/* Separation line */}
-                  <div className="border-t border-gray-200 my-6"></div>
+                  <div className="border-t border-gray-200 my-4"></div>
                   
-                  {/* Cancellation Button */}
-                  <button 
-                    className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-white border border-purple-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-xl lg:text-base" 
-                    onClick={handleDeclineStep1Offer} 
-                    disabled={loading}
-                  >
-                    {loading ? 'Loading…' : 'No thanks'}
-                  </button>
+                                      {/* Button container - pushed to bottom */}
+                    <div className="mt-auto">
+                      <button 
+                        className="w-full px-6 lg:px-8 py-3 lg:py-4 bg-white border border-purple-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 font-medium transition-colors text-lg lg:text-base" 
+                        onClick={handleDeclineStep1Offer} 
+                        disabled={loading}
+                      >
+                        {loading ? 'Loading…' : 'No thanks'}
+                      </button>
+                    </div>
                 </div>
               </div>
             )}
@@ -518,15 +548,15 @@ export default function CancelFlowModal({
 
             {step === 'step2OfferVariantA' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-6">
+                <div className="space-y-6 flex-1">
                   {/* Main Heading */}
-                  <h3 className="text-3xl lg:text-3xl font-semibold text-gray-800 leading-tight">
+                  <h3 className="text-2xl lg:text-3xl font-semibold text-[#41403D] leading-tight">
                     Help us understand how you were<br />
                     using Migrate Mate.
                   </h3>
                   
                   {/* Survey Questions */}
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     <div className="space-y-3">
                       <label className="text-lg font-semibold text-[#41403D]">
                         How many roles did you <span className="underline">apply</span> for through Migrate Mate?
@@ -601,7 +631,7 @@ export default function CancelFlowModal({
                 {/* Buttons - pushed to bottom */}
                 <div className="mt-auto space-y-3">
                   <button 
-                    className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#4ABF71] text-white rounded-lg hover:bg-[#4ABF71]/80 disabled:opacity-50 font-medium transition-colors text-xl lg:text-base" 
+                    className="w-full px-8 lg:px-10 py-4 lg:py-4 bg-[#4ABF71] text-white rounded-lg hover:bg-[#4ABF71]/80 disabled:opacity-50 font-medium transition-colors text-lg lg:text-xl" 
                     onClick={handleAcceptStep2Offer} 
                     disabled={loading}
                   >
@@ -612,7 +642,7 @@ export default function CancelFlowModal({
                     )}
                   </button>
                   <button 
-                    className={`w-full px-8 lg:px-10 py-4 lg:py-4 font-medium transition-colors text-xl lg:text-base rounded-lg ${
+                    className={`w-full px-8 lg:px-10 py-4 lg:py-4 font-medium transition-colors text-lg lg:text-xl rounded-lg ${
                       surveyData.rolesApplied && surveyData.companiesEmailed && surveyData.companiesInterviewed
                         ? 'bg-red-600 text-white hover:bg-red-700'
                         : 'bg-gray-400 text-gray-200 cursor-not-allowed'
@@ -630,35 +660,89 @@ export default function CancelFlowModal({
 
                         {step === 'reason' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-6">
+                <div className="space-y-6 flex-1">
                   {/* Main Heading */}
-                  <h3 className="text-3xl lg:text-3xl font-semibold text-gray-800 leading-tight">
+                  <h3 className="text-2xl lg:text-3xl font-semibold text-[#41403D] leading-tight">
                     What's the main reason for cancelling?
                   </h3>
                   
                   {/* Subtitle */}
-                  <p className="text-lg text-gray-600 leading-relaxed">
+                  <p className="text-lg text-[#41403D] leading-relaxed">
                     Please take a minute to let us know why:
                   </p>
                   
                   {/* Cancellation Reasons */}
                   <div className="space-y-4">
-                    <div className="space-y-3">
-                      {['Too expensive', 'Platform not helpful', 'Not enough relevant jobs', 'Decided not to move', 'Other'].map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setReason(option)}
-                          className={`w-full px-6 py-3 rounded-lg border-2 transition-all text-left ${
-                            reason === option
-                              ? 'border-[#9A6FFF] bg-[#9A6FFF] text-white'
-                              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                          }`}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
+                    {!reason ? (
+                      // Show all options when none is selected
+                      ['Too expensive', 'Platform not helpful', 'Not enough relevant jobs', 'Decided not to move', 'Other'].map((option) => (
+                        <div key={option} className="space-y-2">
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <div className="relative">
+                              <input
+                                type="radio"
+                                name="reason"
+                                value={option}
+                                checked={reason === option}
+                                onChange={(e) => setReason(e.target.value)}
+                                className="sr-only"
+                              />
+                              <div className="w-5 h-5 border-2 border-gray-800 rounded-full flex items-center justify-center">
+                              </div>
+                            </div>
+                            <span className="text-lg text-gray-600">{option}</span>
+                          </label>
+                        </div>
+                      ))
+                    ) : (
+                      // Show only the selected option with text box
+                      <div className="space-y-2">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <div className="relative">
+                            <input
+                              type="radio"
+                              name="reason"
+                              value={reason}
+                              checked={true}
+                              onChange={() => {}} // No change handler needed when already selected
+                              className="sr-only"
+                            />
+                            <div className="w-5 h-5 border-2 border-gray-800 bg-gray-800 rounded-full flex items-center justify-center">
+                              <div className="w-2 h-2 bg-white rounded-full"></div>
+                            </div>
+                          </div>
+                          <span className="text-lg text-gray-600">{reason}</span>
+                        </label>
+                        
+                        {/* Additional details textbox for selected option */}
+                        <div className="ml-8 mt-3 space-y-2">
+                          <label className="text-sm font-medium text-gray-700">
+                            {reason === 'Too expensive' && 'What price would you be willing to pay?'}
+                            {reason === 'Platform not helpful' && 'What could we have done better?'}
+                            {reason === 'Not enough relevant jobs' && 'What types of jobs are you looking for?'}
+                            {reason === 'Decided not to move' && 'What changed your mind about moving?'}
+                            {reason === 'Other' && 'Please tell us more:'}
+                          </label>
+                          <textarea
+                            value={reason === 'Too expensive' ? willingPrice : 
+                                   reason === 'Platform not helpful' ? platformDetails :
+                                   reason === 'Not enough relevant jobs' ? jobsDetails :
+                                   reason === 'Decided not to move' ? moveDetails :
+                                   otherText}
+                            onChange={(e) => {
+                              if (reason === 'Too expensive') setWillingPrice(e.target.value);
+                              else if (reason === 'Platform not helpful') setPlatformDetails(e.target.value);
+                              else if (reason === 'Not enough relevant jobs') setJobsDetails(e.target.value);
+                              else if (reason === 'Decided not to move') setMoveDetails(e.target.value);
+                              else setOtherText(e.target.value);
+                            }}
+                            placeholder={`Tell us more about ${reason.toLowerCase()}...`}
+                            rows={3}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-[#9A6FFF] focus:outline-none resize-none text-gray-800"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                 </div>
@@ -680,7 +764,13 @@ export default function CancelFlowModal({
                     )}
                   </button>
                   <button 
-                    className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-gray-400 text-gray-200 rounded-lg cursor-not-allowed font-medium transition-colors text-xl lg:text-base" 
+                    className={`w-full px-6 lg:px-8 py-4 lg:py-4 rounded-lg font-medium transition-colors text-lg lg:text-xl ${
+                      loading || !reason 
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed' 
+                        : hasTextInTextBox()
+                          ? 'bg-red-600 text-white hover:bg-red-700 cursor-pointer'
+                          : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    }`}
                     onClick={continueAfterReason} 
                     disabled={loading || !reason}
                   >
@@ -692,9 +782,9 @@ export default function CancelFlowModal({
 
             {step === 'foundDetails' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-6">
+                <div className="space-y-6 flex-1">
                   {/* Main Heading */}
-                  <h3 className="text-3xl lg:text-3xl font-semibold text-gray-800 leading-tight">
+                  <h3 className="text-2xl lg:text-3xl font-semibold text-[#41403D] leading-tight">
                     Congratulations on finding a job!
                   </h3>
                   
@@ -765,7 +855,7 @@ export default function CancelFlowModal({
                 {/* Buttons - pushed to bottom */}
                 <div className="mt-auto space-y-3">
                   <button 
-                    className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-[#8952fc] text-white rounded-lg hover:bg-[#7b40fc] disabled:opacity-50 font-medium transition-colors text-xl lg:text-base" 
+                    className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-[#8952fc] text-white rounded-lg hover:bg-[#7b40fc] disabled:opacity-50 font-medium transition-colors text-lg lg:text-xl" 
                     onClick={submitFoundDetails} 
                     disabled={loading}
                   >
@@ -777,25 +867,42 @@ export default function CancelFlowModal({
 
             {step === 'done' && (
               <div className="flex flex-col h-full">
-                <div className="space-y-4 lg:space-y-6 text-center">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+                <div className="flex-1 px-6 lg:px-8 py-6 lg:py-8">
+                  <div className="space-y-4">
+                    {/* Main Heading */}
+                    <div className="text-left space-y-4">
+                      <h3 className="text-4xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
+                        Sorry to see you go, mate.
+                      </h3>
+                      <p className="text-3xl lg:text-3xl font-semibold text-[#41403D] leading-relaxed">
+                        Thanks for being with us, and you're always welcome back.
+                      </p>
+                    </div>
+                    
+                    {/* Subscription Details */}
+                    <div className="space-y-2 text-left">
+                      <p className="text-sm md:text-base font-semibold text-[#41403D] leading-relaxed">
+                        Your subscription is set to end on {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}.
+                        <br /> You'll still have full access until then. No further charges after that.
+                      </p>
+                    </div>
+                    
+                    {/* Reactivation Option */}
+                    <div className="text-left">
+                      <p className="text-sm md:text-base  font-normal text-[#41403D] leading-relaxed">
+                        Changed your mind? You can reactivate anytime before your end date.
+                      </p>
+                    </div>
                   </div>
-                  <h3 className="text-3xl font-semibold text-gray-800">Thank you!</h3>
-                  <p className="text-xl text-gray-700 leading-relaxed">
-                    We've received your cancellation request. We'll process it within 24 hours.
-                  </p>
                 </div>
                 
                 {/* Button - pushed to bottom */}
-                <div className="mt-auto">
+                <div className="px-6 lg:px-8 pb-6 lg:pb-8">
                   <button 
                     className="w-full px-6 lg:px-8 py-4 lg:py-4 bg-[#8952fc] text-white rounded-lg hover:bg-[#7b40fc] disabled:opacity-50 font-medium transition-colors text-xl lg:text-base" 
                     onClick={onClose}
                   >
-                    Close
+                    Back to Jobs
                   </button>
                 </div>
               </div>
