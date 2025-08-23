@@ -10,6 +10,8 @@ type Props = {
   heroSrc?: string;
   profileSrc?: string;
   onCancellationCreated?: () => void;
+  onModalReset?: () => void;
+  resetKey?: number;
 };
 
 type StartResp = {
@@ -25,7 +27,9 @@ export default function CancelFlowModal({
   userId,
   heroSrc = '/empire-state-compressed.jpg',
   profileSrc = '/mihailo-profile.jpeg',
-  onCancellationCreated
+  onCancellationCreated,
+  onModalReset,
+  resetKey
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +87,40 @@ export default function CancelFlowModal({
     }
   }, [step, data?.cancellationId, onCancellationCreated]);
 
+  // Reset modal state when resetKey changes
+  useEffect(() => {
+    if (resetKey && resetKey > 0) {
+      console.log('Modal reset triggered by resetKey:', resetKey);
+      // Reset all state variables to initial values
+      setStep('start');
+      setData(null);
+      setError(null);
+      setReason('');
+      setWillingPrice('');
+      setOtherText('');
+      setPlatformDetails('');
+      setJobsDetails('');
+      setMoveDetails('');
+      setFoundViaUs('');
+      setVisaType('');
+      setFoundNotes('');
+      setFoundJobViaMigrateMate('');
+      setFoundJobRolesApplied('');
+      setFoundJobCompaniesEmailed('');
+      setFoundJobCompaniesInterviewed('');
+      setFoundJobFeedback('');
+      setFoundJobVisaLawyer('');
+      setFoundJobVisaType('');
+      setAcceptedOffer(null);
+      setSurveyData({
+        rolesApplied: '',
+        companiesEmailed: '',
+        companiesInterviewed: ''
+      });
+      setCancellationReason('');
+    }
+  }, [resetKey]);
+
   // Handle finish action - complete cancellation and close modal
   const handleFinish = async () => {
     if (data?.cancellationId) {
@@ -100,6 +138,54 @@ export default function CancelFlowModal({
     }
     // Close the modal
     onClose();
+  };
+
+  // Reset modal state to initial state
+  const resetModalState = async () => {
+    try {
+      // Record the reset action in the database
+      await fetch('/api/cancellations/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId,
+          reason: 'modal_reset_by_user'
+        })
+      });
+
+      // Reset all state variables to initial values
+      setStep('start');
+      setData(null);
+      setError(null);
+      setReason('');
+      setWillingPrice('');
+      setOtherText('');
+      setPlatformDetails('');
+      setJobsDetails('');
+      setMoveDetails('');
+      setFoundViaUs('');
+      setVisaType('');
+      setFoundNotes('');
+      setFoundJobViaMigrateMate('');
+      setFoundJobRolesApplied('');
+      setFoundJobCompaniesEmailed('');
+      setFoundJobCompaniesInterviewed('');
+      setFoundJobFeedback('');
+      setFoundJobVisaLawyer('');
+      setFoundJobVisaType('');
+      setAcceptedOffer(null);
+      setSurveyData({
+        rolesApplied: '',
+        companiesEmailed: '',
+        companiesInterviewed: ''
+      });
+      setCancellationReason('');
+
+      // Notify parent that modal was reset
+      onModalReset?.();
+    } catch (error) {
+      console.error('Failed to reset modal state:', error);
+    }
   };
 
   const offerPrice = useMemo(() => {
@@ -373,13 +459,14 @@ export default function CancelFlowModal({
       // Notify parent that cancellation was created
       onCancellationCreated?.();
       
-      // A/B Testing: Use variant from API response
-      if (payload.variant === 'B') {
-        // Variant B: Show downsell offer
-        setStep('downsell');
+      // 50% chance: Go to offer page, 50% chance: Go directly to cancelled page
+      const randomChance = Math.random();
+      if (randomChance < 0.5) {
+        // 50% chance: Show the 50% off offer
+        setStep('step1Offer');
       } else {
-        // Variant A: Go directly to reason selection
-        setStep('reason');
+        // 50% chance: Skip offer and go directly to cancelled
+        setStep('subscriptionCancelled');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong starting cancellation');
@@ -559,6 +646,7 @@ export default function CancelFlowModal({
             <button 
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+              title="Close modal"
             >
               <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -655,8 +743,7 @@ export default function CancelFlowModal({
                 <div className="space-y-5 lg:space-y-6 flex-1">
                   {/* Main Heading */}
                   <h3 className="text-3xl lg:text-4xl font-semibold text-[#41403D] leading-tight">
-                    We built this to help you land the job,<br />
-                    this makes it a little easier.
+                    We built this to help you land the job, this makes it a little easier.
                   </h3>
                   
                   {/* Descriptive Text */}

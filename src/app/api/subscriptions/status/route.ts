@@ -88,9 +88,30 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
+    // Check for active cancellations (pending cancellation status)
+    const { data: activeCancellation, error: cancelError } = await supabaseAdmin
+      .from('cancellations')
+      .select('id')
+      .eq('user_id', userId)
+      .is('resolved_at', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (cancelError) {
+      console.error('Failed to check for active cancellations:', cancelError);
+    }
+
+    // Determine final status
+    let finalStatus = subscription.status;
+    
+    // If there's an active cancellation and subscription is active, status is pending_cancellation
+    if (activeCancellation && subscription.status === 'active') {
+      finalStatus = 'pending_cancellation';
+    }
+
     const response = NextResponse.json({
       success: true,
-      status: subscription.status
+      status: finalStatus
     });
     
     // Set CORS headers directly on response

@@ -31,10 +31,20 @@ export default function ProfilePage() {
   
   // State for cancel flow modal
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [modalResetKey, setModalResetKey] = useState(0);
   
   // State for subscription status
   const [subscriptionStatus, setSubscriptionStatus] = useState('active');
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
+
+  // Function to reset modal state
+  const resetModalState = () => {
+    setShowCancelModal(false);
+    // Small delay to ensure modal closes before reopening
+    setTimeout(() => {
+      setShowCancelModal(true);
+    }, 100);
+  };
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -60,6 +70,7 @@ export default function ProfilePage() {
       if (response.ok) {
         const data = await response.json();
         setSubscriptionStatus(data.status);
+        console.log('Subscription status updated to:', data.status);
       } else {
         console.error('Status fetch failed:', response.status);
       }
@@ -140,6 +151,11 @@ export default function ProfilePage() {
         heroSrc="/empire-state-compressed.jpg"
         profileSrc="/mihailo-profile.jpeg"
         onCancellationCreated={fetchSubscriptionStatus}
+        onModalReset={() => {
+          // Reset modal state and refresh subscription status
+          fetchSubscriptionStatus();
+        }}
+        resetKey={modalResetKey}
       />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -213,9 +229,24 @@ export default function ProfilePage() {
                                 body: JSON.stringify({ userId: mockUser.id })
                               });
                               if (response.ok) {
+                                console.log('Renew API call successful (pending), updating status...');
                                 // Add a small delay to ensure the API has processed the update
                                 setTimeout(async () => {
+                                  console.log('Fetching updated subscription status (pending)...');
                                   await fetchSubscriptionStatus();
+                                  // Reset modal state to initial without opening modal
+                                  console.log('Resetting modal state to initial (without opening)...');
+                                  // Call the reset API to reset modal state in database
+                                  await fetch('/api/cancellations/reset', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ 
+                                      userId: mockUser.id,
+                                      reason: 'pending_cancellation_reset'
+                                    })
+                                  });
+                                  // Increment modal reset key to trigger modal reset
+                                  setModalResetKey(prev => prev + 1);
                                 }, 100);
                               } else {
                                 console.error('Renew failed:', response.status);
@@ -227,7 +258,7 @@ export default function ProfilePage() {
                             }
                           }}
                           className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-colors"
-                          title="Cancel pending cancellation"
+                          title="Renew subscription and reset modal to initial state"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -365,9 +396,26 @@ export default function ProfilePage() {
                               body: JSON.stringify({ userId: mockUser.id })
                             });
                             if (response.ok) {
+                              console.log('Renew API call successful, updating status...');
                               // Add a small delay to ensure the API has processed the update
                               setTimeout(async () => {
+                                console.log('Fetching updated subscription status...');
                                 await fetchSubscriptionStatus();
+                                // Small additional delay to ensure UI has updated
+                                setTimeout(() => {
+                                  console.log('Resetting modal state...');
+                                  // Call the reset API to reset modal state in database
+                                  fetch('/api/cancellations/reset', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ 
+                                      userId: mockUser.id,
+                                      reason: 'cancelled_subscription_renew_reset'
+                                    })
+                                  });
+                                  // Increment modal reset key to trigger modal reset
+                                  setModalResetKey(prev => prev + 1);
+                                }, 200);
                               }, 100);
                             } else {
                               console.error('Renew failed:', response.status);
