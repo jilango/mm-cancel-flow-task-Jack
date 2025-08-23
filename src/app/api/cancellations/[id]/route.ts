@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
 
 const UpdateSchema = z.object({
   reason: z.string().max(500, 'Reason too long').optional().nullable(),
@@ -47,7 +48,69 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }, { status: 400 });
     }
 
-    // For development/testing without database - always return success
+    const { reason, acceptedDownsell, details, flowType, foundJobData } = validation.data;
+
+    console.log('Received update request:', { id, reason, acceptedDownsell, details, flowType, foundJobData });
+
+    // Initialize Supabase client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Update the cancellation record
+    const updateData: any = {};
+    
+    if (reason !== undefined) updateData.reason = reason;
+    if (acceptedDownsell !== undefined) updateData.accepted_downsell = acceptedDownsell;
+    if (details !== undefined) updateData.details = details;
+    if (flowType !== undefined) updateData.flow_type = flowType;
+    
+    // If this is an offer acceptance, mark as resolved
+    if (flowType === 'offer_accepted') {
+      updateData.resolved_at = new Date().toISOString();
+    }
+
+    // Update the cancellation
+    const { error: updateError } = await supabase
+      .from('cancellations')
+      .update(updateData)
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Failed to update cancellation:', updateError);
+      console.error('Update data:', updateData);
+      console.error('Cancellation ID:', id);
+      return NextResponse.json({ error: 'Failed to update cancellation', details: updateError.message }, { status: 500 });
+    }
+
+    // If this is an offer acceptance, also update the subscription status to active
+    if (flowType === 'offer_accepted') {
+      // Get the cancellation to find the subscription_id
+      const { data: cancellation, error: fetchError } = await supabase
+        .from('cancellations')
+        .select('subscription_id')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        console.error('Failed to fetch cancellation for subscription update:', fetchError);
+        return NextResponse.json({ error: 'Failed to fetch cancellation', details: fetchError.message }, { status: 500 });
+      }
+
+      if (cancellation?.subscription_id) {
+        const { error: subscriptionError } = await supabase
+          .from('subscriptions')
+          .update({ status: 'active' })
+          .eq('id', cancellation.subscription_id);
+
+        if (subscriptionError) {
+          console.error('Failed to update subscription status:', subscriptionError);
+          return NextResponse.json({ error: 'Failed to update subscription', details: subscriptionError.message }, { status: 500 });
+        }
+      }
+    }
+
     const response = NextResponse.json({ ok: true });
     
     // Set CORS headers directly on response

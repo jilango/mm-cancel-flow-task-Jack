@@ -869,7 +869,39 @@ export default function CancelFlowModal({
 
   const handleAcceptStep1Offer = async () => {
     // Handle accepting the 50% off offer
-    setStep('offerAccepted');
+    if (!data?.cancellationId) {
+      setError('No cancellation data found. Please start over.');
+      return;
+    }
+    
+    setLoading(true);
+    clearError();
+    
+    try {
+      const res = await fetch(`/api/cancellations/${data.cancellationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          flowType: 'offer_accepted',
+          acceptedDownsell: true 
+        })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to accept offer');
+      }
+      
+      // Trigger frontend status fetch
+      onCancellationCreated?.();
+      
+      setStep('offerAccepted');
+    } catch (error) {
+      console.error('Failed to accept Step 1 offer:', error);
+      setError(error instanceof Error ? error.message : 'Failed to accept offer');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeclineStep1Offer = async () => {
@@ -879,7 +911,39 @@ export default function CancelFlowModal({
 
   const handleAcceptStep2Offer = async () => {
     // Handle accepting the 50% off offer from step 2
-    setStep('offerAccepted');
+    if (!data?.cancellationId) {
+      setError('No cancellation data found. Please start over.');
+      return;
+    }
+    
+    setLoading(true);
+    clearError();
+    
+    try {
+      const res = await fetch(`/api/cancellations/${data.cancellationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          flowType: 'offer_accepted',
+          acceptedDownsell: true 
+        })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to accept offer');
+      }
+      
+      // Trigger frontend status fetch
+      onCancellationCreated?.();
+      
+      setStep('offerAccepted');
+    } catch (error) {
+      console.error('Failed to accept Step 2 offer:', error);
+      setError(error instanceof Error ? error.message : 'Failed to accept offer');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleContinueFromStep2 = async () => {
