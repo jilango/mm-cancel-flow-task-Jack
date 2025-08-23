@@ -196,7 +196,8 @@ export async function POST(req: Request) {
         user_id: userId,
         subscription_id: sub.id,
         downsell_variant: variant,
-        flow_type: flowType
+        flow_type: flowType,
+        current_step: 'start'
       })
       .select('id')
       .single();

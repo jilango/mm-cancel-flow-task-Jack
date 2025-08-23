@@ -12,6 +12,8 @@ type Props = {
   onCancellationCreated?: () => void;
   onModalReset?: () => void;
   resetKey?: number;
+  initialStep?: string;
+  initialData?: any;
 };
 
 type StartResp = {
@@ -29,14 +31,23 @@ export default function CancelFlowModal({
   profileSrc = '/mihailo-profile.jpeg',
   onCancellationCreated,
   onModalReset,
-  resetKey
+  resetKey,
+  initialStep = 'start',
+  initialData = null
 }: Props) {
+  console.log('CancelFlowModal props:', { initialStep, initialData, isOpen });
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'subscriptionCancelled' | 'offerAccepted' | 'foundJobStep1' | 'foundJobStep2' | 'foundJobStep3VariantA' | 'foundJobStep3VariantB' | 'foundJobCancelledNoHelp' | 'foundJobCancelledWithHelp' | 'downsell'>('start');
+  const [step, setStep] = useState<'start' | 'step1Offer' | 'step2OfferVariantA' | 'offer' | 'reason' | 'foundDetails' | 'subscriptionCancelled' | 'offerAccepted' | 'foundJobStep1' | 'foundJobStep2' | 'foundJobStep3VariantA' | 'foundJobStep3VariantB' | 'foundJobCancelledNoHelp' | 'foundJobCancelledWithHelp' | 'downsell'>(initialStep as any);
+
+  // Log when step changes
+  useEffect(() => {
+    console.log('Modal step changed to:', step, 'initialStep was:', initialStep);
+  }, [step, initialStep]);
 
 
-  const [data, setData] = useState<StartResp | null>(null);
+  const [data, setData] = useState<StartResp | null>(initialData);
 
   // Form state
   const [reason, setReason] = useState('');
@@ -130,6 +141,100 @@ export default function CancelFlowModal({
       setCancellationReason('');
     }
   }, [resetKey]);
+
+  // Set initial step when initialStep prop changes (but not when resetKey triggers)
+  useEffect(() => {
+    if (initialStep && initialStep !== 'start') {
+      console.log('Setting initial step from prop:', initialStep);
+      setStep(initialStep as any);
+    }
+  }, [initialStep]);
+
+  // Initialize form data when initialData is provided
+  useEffect(() => {
+    console.log('Initializing form data with:', initialData);
+    
+    if (initialData && initialData.foundJobData) {
+      const foundJobData = initialData.foundJobData;
+      console.log('Setting found job data:', foundJobData);
+      setFoundJobViaMigrateMate(foundJobData.via_migrate_mate || '');
+      setFoundJobRolesApplied(foundJobData.roles_applied || '');
+      setFoundJobCompaniesEmailed(foundJobData.companies_emailed || '');
+      setFoundJobCompaniesInterviewed(foundJobData.companies_interviewed || '');
+      setFoundJobFeedback(foundJobData.feedback || '');
+      setFoundJobVisaLawyer(foundJobData.visa_lawyer || '');
+      setFoundJobVisaType(foundJobData.visa_type || '');
+    }
+    
+    if (initialData && initialData.reason) {
+      console.log('Setting reason:', initialData.reason);
+      setReason(initialData.reason);
+    }
+    
+    if (initialData && initialData.details) {
+      const details = initialData.details;
+      console.log('Setting details:', details);
+      if (details.willingPrice) {
+        console.log('Setting willingPrice to:', details.willingPrice);
+        setWillingPrice(details.willingPrice);
+      }
+      if (details.other) {
+        console.log('Setting other to:', details.other);
+        setOtherText(details.other);
+      }
+      if (details.platformDetails) setPlatformDetails(details.platformDetails);
+      if (details.jobsDetails) setJobsDetails(details.jobsDetails);
+      if (details.moveDetails) setMoveDetails(details.moveDetails);
+      if (details.foundViaUs) setFoundViaUs(details.foundViaUs);
+      if (details.visaType) setVisaType(details.visaType);
+      if (details.foundNotes) setFoundNotes(details.foundNotes);
+    }
+  }, [initialData]);
+
+  // Update current step in database when step changes
+  useEffect(() => {
+    if (data?.cancellationId && step !== 'start') {
+      const updateStep = async () => {
+        try {
+          await fetch('/api/cancellations/step', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              cancellationId: data.cancellationId, 
+              currentStep: step 
+            })
+          });
+        } catch (error) {
+          console.error('Failed to update current step:', error);
+        }
+      };
+      
+      updateStep();
+    }
+  }, [step, data?.cancellationId]);
+
+  // Save current state when modal is about to close
+  const handleClose = async () => {
+    // Save current state before closing
+    if (data?.cancellationId && step !== 'start') {
+      try {
+        await fetch('/api/cancellations/step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            cancellationId: data.cancellationId, 
+            currentStep: step 
+          })
+        });
+        console.log('Modal state saved before closing at step:', step);
+      } catch (error) {
+        console.error('Failed to save modal state on close:', error);
+      }
+    }
+    
+    // Call the original onClose
+    onClose();
+  };
 
   // Handle finish action - complete cancellation and close modal
   const handleFinish = async () => {
@@ -889,7 +994,7 @@ export default function CancelFlowModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start lg:items-center justify-center pt-16 lg:pt-0 p-0 lg:p-4">
-      <div className="absolute inset-0 bg-gray-800/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-gray-800/50" onClick={handleClose} />
       <div className="relative w-full max-w-none lg:max-w-7xl bg-white rounded-t-lg lg:rounded-lg shadow-xl overflow-hidden flex flex-col h-full lg:h-auto">
         {/* Mobile: Fixed bottom button container */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[60] px-4 py-3">
@@ -935,7 +1040,7 @@ export default function CancelFlowModal({
 
           <div className="w-16 lg:w-24 flex justify-end">
             <button 
-              onClick={onClose}
+              onClick={handleClose}
               className="text-gray-400 hover:text-gray-600 transition-colors p-1"
               title="Close modal"
             >

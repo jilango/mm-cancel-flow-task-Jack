@@ -32,6 +32,8 @@ export default function ProfilePage() {
   // State for cancel flow modal
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [modalResetKey, setModalResetKey] = useState(0);
+  const [modalData, setModalData] = useState<any>(null);
+  const [isModalDataReady, setIsModalDataReady] = useState(false);
   
   // State for subscription status
   const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'pending_cancellation' | 'cancelled'>('active');
@@ -78,6 +80,28 @@ export default function ProfilePage() {
       console.error('Error fetching subscription status:', error);
     } finally {
       setIsLoadingStatus(false);
+    }
+  };
+
+  const fetchModalState = async () => {
+    try {
+      console.log('Fetching modal state for user:', mockUser.id);
+      setIsModalDataReady(false);
+      const response = await fetch(`/api/cancellations/state?userId=${mockUser.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setModalData(data);
+        setIsModalDataReady(true);
+        console.log('Modal state fetched successfully:', data);
+      } else {
+        console.error('Modal state fetch failed:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        setIsModalDataReady(true); // Set to true even on error to allow modal to open
+      }
+    } catch (error) {
+      console.error('Error fetching modal state:', error);
+      setIsModalDataReady(true); // Set to true even on error to allow modal to open
     }
   };
 
@@ -142,7 +166,24 @@ export default function ProfilePage() {
       {/* Cancel Flow Modal */}
       <CancelFlowModal
         isOpen={showCancelModal}
-        onClose={() => {
+        onClose={async () => {
+          // Save current modal state before closing
+          if (modalData?.cancellationId) {
+            try {
+              await fetch('/api/cancellations/step', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  cancellationId: modalData.cancellationId, 
+                  currentStep: modalData.currentStep 
+                })
+              });
+              console.log('Modal state saved before closing');
+            } catch (error) {
+              console.error('Failed to save modal state on close:', error);
+            }
+          }
+          
           setShowCancelModal(false);
           // Refresh subscription status when modal closes
           fetchSubscriptionStatus();
@@ -156,6 +197,8 @@ export default function ProfilePage() {
           fetchSubscriptionStatus();
         }}
         resetKey={modalResetKey}
+        initialStep={modalData?.currentStep}
+        initialData={modalData}
       />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -382,11 +425,41 @@ export default function ProfilePage() {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (subscriptionStatus === 'active') {
-                          // Reset modal state to initial page when status is active
-                          setModalResetKey(prev => prev + 1);
-                          setShowCancelModal(true);
+                          // Check if there's existing modal state even when status is active
+                          console.log('Status is active, checking for existing modal state...');
+                          const response = await fetch(`/api/cancellations/state?userId=${mockUser.id}`);
+                          if (response.ok) {
+                            const data = await response.json();
+                            console.log('Modal state fetched directly:', data);
+                            setModalData(data);
+                            if (data.hasActiveCancellation) {
+                              console.log('Found existing modal state, opening with data:', data);
+                              setShowCancelModal(true);
+                            } else {
+                              console.log('No existing modal state, resetting to start');
+                              setModalResetKey(prev => prev + 1);
+                              setShowCancelModal(true);
+                            }
+                          } else {
+                            console.error('Failed to fetch modal state');
+                            setModalResetKey(prev => prev + 1);
+                            setShowCancelModal(true);
+                          }
+                        } else if (subscriptionStatus === 'pending_cancellation') {
+                          // Fetch current modal state before opening
+                          console.log('Status is pending_cancellation, fetching modal state...');
+                          const response = await fetch(`/api/cancellations/state?userId=${mockUser.id}`);
+                          if (response.ok) {
+                            const data = await response.json();
+                            console.log('Modal state fetched directly:', data);
+                            setModalData(data);
+                            setShowCancelModal(true);
+                          } else {
+                            console.error('Failed to fetch modal state');
+                            setShowCancelModal(true);
+                          }
                         } else {
                           // Normal behavior for other statuses
                           setShowCancelModal(true);
