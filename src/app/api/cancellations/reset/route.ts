@@ -27,12 +27,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingCancellation) {
-      // Mark the existing cancellation as resolved with reset reason
+      // Mark the existing cancellation as resolved
       const { error: updateError } = await supabase
         .from('cancellations')
         .update({
           resolved_at: new Date().toISOString(),
-          resolution_reason: reason,
           updated_at: new Date().toISOString()
         })
         .eq('id', existingCancellation.id);
@@ -42,28 +41,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create a new cancellation record for the reset action
-    const { data: newCancellation, error: createError } = await supabase
-      .from('cancellations')
-      .insert({
-        user_id: userId,
-        downsell_variant: 'A', // Default variant for reset
-        flow_type: 'standard', // Standard flow type for reset
-        reason: reason,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (createError) {
-      return NextResponse.json({ error: 'Failed to create reset record' }, { status: 500 });
-    }
+    // Don't create a new cancellation record - just resolve existing ones
+    // This allows the subscription to return to 'active' status
 
     return NextResponse.json({
       success: true,
       message: 'Modal state reset successfully',
-      cancellationId: newCancellation.id
+      cancellationId: existingCancellation?.id || null
     });
 
   } catch (error) {

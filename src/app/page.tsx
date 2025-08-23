@@ -230,14 +230,14 @@ export default function ProfilePage() {
                               });
                               if (response.ok) {
                                 console.log('Renew API call successful (pending), updating status...');
-                                // Add a small delay to ensure the API has processed the update
-                                setTimeout(async () => {
-                                  console.log('Fetching updated subscription status (pending)...');
-                                  await fetchSubscriptionStatus();
-                                  // Reset modal state to initial without opening modal
+                                // Wait for the renew API to complete and then fetch updated status
+                                await fetchSubscriptionStatus();
+                                
+                                // Only reset modal state after status is confirmed to be active
+                                if (subscriptionStatus === 'active') {
                                   console.log('Resetting modal state to initial (without opening)...');
                                   // Call the reset API to reset modal state in database
-                                  await fetch('/api/cancellations/reset', {
+                                  const resetResponse = await fetch('/api/cancellations/reset', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ 
@@ -245,15 +245,20 @@ export default function ProfilePage() {
                                       reason: 'pending_cancellation_reset'
                                     })
                                   });
-                                  // Increment modal reset key to trigger modal reset
-                                  setModalResetKey(prev => prev + 1);
-                                }, 100);
+                                  
+                                  if (resetResponse.ok) {
+                                    // Increment modal reset key to trigger modal reset
+                                    setModalResetKey(prev => prev + 1);
+                                  } else {
+                                    console.error('Reset API failed:', resetResponse.status);
+                                  }
+                                }
                               } else {
                                 console.error('Renew failed:', response.status);
-                                setIsLoadingStatus(false);
                               }
                             } catch (error) {
                               console.error('Failed to renew subscription:', error);
+                            } finally {
                               setIsLoadingStatus(false);
                             }
                           }}
@@ -397,32 +402,35 @@ export default function ProfilePage() {
                             });
                             if (response.ok) {
                               console.log('Renew API call successful, updating status...');
-                              // Add a small delay to ensure the API has processed the update
-                              setTimeout(async () => {
-                                console.log('Fetching updated subscription status...');
-                                await fetchSubscriptionStatus();
-                                // Small additional delay to ensure UI has updated
-                                setTimeout(() => {
-                                  console.log('Resetting modal state...');
-                                  // Call the reset API to reset modal state in database
-                                  fetch('/api/cancellations/reset', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ 
-                                      userId: mockUser.id,
-                                      reason: 'cancelled_subscription_renew_reset'
-                                    })
-                                  });
+                              // Wait for the renew API to complete and then fetch updated status
+                              await fetchSubscriptionStatus();
+                              
+                              // Only reset modal state after status is confirmed to be active
+                              if (subscriptionStatus === 'active') {
+                                console.log('Resetting modal state...');
+                                // Call the reset API to reset modal state in database
+                                const resetResponse = await fetch('/api/cancellations/reset', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ 
+                                    userId: mockUser.id,
+                                    reason: 'cancelled_subscription_renew_reset'
+                                  })
+                                });
+                                
+                                if (resetResponse.ok) {
                                   // Increment modal reset key to trigger modal reset
                                   setModalResetKey(prev => prev + 1);
-                                }, 200);
-                              }, 100);
+                                } else {
+                                  console.error('Reset API failed:', resetResponse.status);
+                                }
+                              }
                             } else {
                               console.error('Renew failed:', response.status);
-                              setIsLoadingStatus(false);
                             }
                           } catch (error) {
                             console.error('Failed to renew subscription:', error);
+                          } finally {
                             setIsLoadingStatus(false);
                           }
                         }}
