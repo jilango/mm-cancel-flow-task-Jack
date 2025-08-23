@@ -268,7 +268,7 @@ export default function ProfilePage() {
                               setIsLoadingStatus(false);
                             }
                           }}
-                          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-colors"
+                          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300 transition-colors"
                           title="Renew subscription and reset modal to initial state"
                         >
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,10 +301,11 @@ export default function ProfilePage() {
                       <p className="text-sm font-medium text-gray-900">Next payment</p>
                     </div>
                     <p className="text-sm font-medium text-gray-900">
-                      {mockSubscriptionData.currentPeriodEnd && new Date(mockSubscriptionData.currentPeriodEnd).toLocaleDateString('en-US', {
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {mockSubscriptionData.currentPeriodEnd && (() => {
+                        const date = new Date(mockSubscriptionData.currentPeriodEnd);
+                        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                        return `${months[date.getMonth()]} ${date.getDate()}`;
+                      })()}
                     </p>
                   </div>
                 )}
@@ -459,7 +460,7 @@ export default function ProfilePage() {
                         className={`inline-flex items-center justify-center w-full px-4 py-3 rounded-lg transition-all duration-200 shadow-sm ${
                           isLoadingStatus
                             ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'
-                            : 'bg-green-600 border border-green-600 text-white hover:bg-green-700 hover:border-green-700'
+                            : 'bg-[#4ABF71] border border-[#4ABF71] text-white hover:bg-[#4ABF71]/80 hover:border-[#4ABF71]/80'
                         }`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
