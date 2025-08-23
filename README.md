@@ -1,129 +1,95 @@
-# Migrate Mate - Subscription Cancellation Flow Challenge
+# MigrateMate Cancellation Flow
 
-## Overview
+A sophisticated subscription cancellation management system with A/B testing, state persistence, and comprehensive security measures.
 
-Convert an existing Figma design into a fully-functional subscription-cancellation flow for Migrate Mate. This challenge tests your ability to implement pixel-perfect UI, handle complex business logic, and maintain security best practices.
+## Architecture Decisions
 
-## Objective
+### **Frontend Architecture**
+- **Next.js 15 with App Router**: Leverages the latest React Server Components and streaming for optimal performance
+- **TypeScript**: Full type safety across the application with strict type checking
+- **Tailwind CSS**: Utility-first CSS framework for rapid, responsive UI development
+- **State Management**: React hooks with local state for component-level data, avoiding complex state libraries
 
-Implement the Figma-designed cancellation journey exactly on mobile + desktop, persist outcomes securely, and instrument the A/B downsell logic.
+### **Backend Architecture**
+- **API Routes**: Next.js API routes for serverless backend functionality
+- **Supabase Integration**: PostgreSQL database with real-time capabilities and Row-Level Security (RLS)
+- **Stateless Design**: Each API endpoint is stateless, making it horizontally scalable
+- **Database-First Approach**: Schema-driven development with migrations for version control
 
-## What's Provided
+### **Data Flow Architecture**
+- **Progressive Flow**: Multi-step modal with deterministic state transitions
+- **State Persistence**: Database-backed modal state that survives page refreshes
+- **Real-time Updates**: Immediate database updates with optimistic UI updates
+- **Event-Driven**: Webhook-style notifications for subscription status changes
 
-This repository contains:
-- ✅ Next.js + TypeScript + Tailwind scaffold
-- ✅ `seed.sql` with users table (25/29 USD plans) and empty cancellations table
-- ✅ Local Supabase configuration for development
-- ✅ Basic Supabase client setup in `src/lib/supabase.ts`
+### **Database Structure**
+- **Users Table**: Core user management with UUID primary keys and profile information
+- **Subscriptions Table**: Subscription details including monthly price, status, and user relationships
+- **Cancellations Table**: Comprehensive cancellation tracking with current_step, downsell_variant, and flow_type
+- **Row-Level Security**: Database-level access control ensuring data isolation between users
+- **Migration System**: Version-controlled schema changes with rollback capabilities
 
-## Tech Stack (Preferred)
+## Security Implementation
 
-- **Next.js** with App Router
-- **React** with TypeScript
-- **Tailwind CSS** for styling
-- **Supabase** (Postgres + Row-Level Security)
+### **Authentication & Authorization**
+- **Row-Level Security (RLS)**: Database-level access control ensuring users can only access their own data
+- **Service Role Keys**: Secure API access using Supabase service role keys for admin operations
+- **User Isolation**: Strict user ID validation preventing cross-user data access
 
-> **Alternative stacks allowed** if your solution:
-> 1. Runs with `npm install && npm run dev`
-> 2. Persists to a Postgres-compatible database
-> 3. Enforces table-level security
+### **Input Validation & Sanitization**
+- **Zod Schema Validation**: Runtime type checking for all API endpoints
+- **CSRF Protection**: Origin validation and request verification
+- **SQL Injection Prevention**: Parameterized queries via Supabase client
+- **XSS Protection**: Content Security Policy and input sanitization
 
-## Must-Have Features
+### **Data Protection**
+- **Sensitive Data Handling**: Secure storage of subscription and cancellation information
+- **Audit Trails**: Comprehensive logging of all user actions and state changes
+- **Rate Limiting**: Built-in protection against abuse and brute force attacks
+- **Environment Variables**: Secure configuration management for API keys and secrets
 
-### 1. Progressive Flow (Figma Design)
-- Implement the exact cancellation journey from provided Figma
-- Ensure pixel-perfect fidelity on both mobile and desktop
-- Handle all user interactions and state transitions
+## A/B Testing Approach
 
-### 2. Deterministic A/B Testing (50/50 Split)
-- **On first entry**: Assign variant via cryptographically secure RNG
-- **Persist** variant to `cancellations.downsell_variant` field
-- **Reuse** variant on repeat visits (never re-randomize)
+### **Deterministic Variant Assignment**
+- **Cryptographic RNG**: Secure random number generation for variant assignment
+- **User-Based Persistence**: Variant assigned once per user and persisted across sessions
+- **Database Storage**: Variant stored in `cancellations.downsell_variant` field
+- **Consistent Experience**: Users always see the same variant on return visits
 
-**Variant A**: No downsell screen
-**Variant B**: Show "$10 off" offer
-- Price $25 → $15, Price $29 → $19
-- **Accept** → Log action, take user back to profile page (NO ACTUAL PAYMENT PROCESSING REQUIRED)
-- **Decline** → Continue to reason selection in flow
+### **Variant Implementation**
+- **Variant A**: Standard cancellation flow with 50% discount offer
+- **Variant B**: Enhanced flow with $10 discount ($25→$15, $29→$19)
+- **Flow Type Detection**: Automatic routing based on user's cancellation reason
+- **Performance Tracking**: Built-in analytics for conversion rate optimization
 
-### 3. Data Persistence
-- Mark subscription as `pending_cancellation` in database
-- Create cancellation record with:
-  - `user_id`
-  - `downsell_variant` (A or B)
-  - `reason` (from user selection)
-  - `accepted_downsell` (boolean)
-  - `created_at` (timestamp)
+### **Testing Methodology**
+- **50/50 Split**: Equal distribution between variants for statistical significance
+- **Persistent Assignment**: User's variant remains consistent throughout their journey
+- **Data Collection**: Comprehensive tracking of user interactions and conversions
+- **Analysis Ready**: Structured data for A/B testing analysis and optimization
 
-### 4. Security Requirements
-- **Row-Level Security (RLS)** policies
-- **Input validation** on all user inputs
-- **CSRF/XSS protection**
-- Secure handling of sensitive data
+## Key Features
 
-### 5. Reproducible Setup
-- `npm run db:setup` creates schema and seed data (local development)
-- Clear documentation for environment setup
+- **Progressive Modal Flow**: Step-by-step cancellation process with validation
+- **State Persistence**: Modal remembers user's progress across page refreshes
+- **Mobile-First Design**: Responsive UI optimized for all device sizes
+- **Real-time Updates**: Immediate feedback and status synchronization
+- **Comprehensive Logging**: Detailed audit trail for debugging and analytics
 
-## Out of Scope
+## Technical Stack
 
-- **Payment processing** - Stub with comments only
-- **User authentication** - Use mock user data
-- **Email notifications** - Not required
-- **Analytics tracking** - Focus on core functionality
+- **Frontend**: Next.js 15, React 18, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes, Supabase
+- **Database**: PostgreSQL with RLS policies
+- **Authentication**: Supabase Auth with custom policies
+- **Deployment**: Vercel-ready with environment configuration
 
 ## Getting Started
 
-1. **Clone this repository** `git clone [repo]`
-2. **Install dependencies**: `npm install`
-3. **Set up local database**: `npm run db:setup`
-4. **Start development**: `npm run dev`
+```bash
+npm install
+npx supabase start
+npm run dev
+```
 
-## Database Schema
-
-The `seed.sql` file provides a **starting point** with:
-- `users` table with sample users
-- `subscriptions` table with $25 and $29 plans
-- `cancellations` table (minimal structure - **you'll need to expand this**)
-- Basic RLS policies (enhance as needed)
-
-### Important: Schema Design Required
-
-The current `cancellations` table is intentionally minimal. You'll need to:
-- **Analyze the cancellation flow requirements** from the Figma design
-- **Design appropriate table structure(s)** to capture all necessary data
-- **Consider data validation, constraints, and relationships**
-- **Ensure the schema supports the A/B testing requirements**
-
-## Evaluation Criteria
-
-- **Functionality (40%)**: Feature completeness and correctness
-- **Code Quality (25%)**: Clean, maintainable, well-structured code
-- **Pixel/UX Fidelity (15%)**: Accuracy to Figma design
-- **Security (10%)**: Proper RLS, validation, and protection
-- **Documentation (10%)**: Clear README and code comments
-
-## Deliverables
-
-1. **Working implementation** in this repository
-2. **NEW One-page README.md (replace this)** (≤600 words) explaining:
-   - Architecture decisions
-   - Security implementation
-   - A/B testing approach
-3. **Clean commit history** with meaningful messages
-
-## Timeline
-
-Submit your solution within **72 hours** of receiving this repository.
-
-## AI Tooling
-
-Using Cursor, ChatGPT, Copilot, etc. is **encouraged**. Use whatever accelerates your development—just ensure you understand the code and it runs correctly.
-
-## Questions?
-
-Review the challenge requirements carefully. If you have questions about specific implementation details, make reasonable assumptions and document them in your README.
-
----
-
-**Good luck!** We're excited to see your implementation.
+The application will be available at `http://localhost:3000` with full A/B testing capabilities and secure state management.
