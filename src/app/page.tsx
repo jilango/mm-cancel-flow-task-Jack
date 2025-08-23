@@ -34,7 +34,7 @@ export default function ProfilePage() {
   const [modalResetKey, setModalResetKey] = useState(0);
   
   // State for subscription status
-  const [subscriptionStatus, setSubscriptionStatus] = useState('active');
+  const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'pending_cancellation' | 'cancelled'>('active');
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 
   // Function to reset modal state
@@ -233,24 +233,30 @@ export default function ProfilePage() {
                                 // Wait for the renew API to complete and then fetch updated status
                                 await fetchSubscriptionStatus();
                                 
-                                // Only reset modal state after status is confirmed to be active
-                                if (subscriptionStatus === 'active') {
-                                  console.log('Resetting modal state to initial (without opening)...');
-                                  // Call the reset API to reset modal state in database
-                                  const resetResponse = await fetch('/api/cancellations/reset', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ 
-                                      userId: mockUser.id,
-                                      reason: 'pending_cancellation_reset'
-                                    })
-                                  });
+                                // Check if the status is now active by getting the current status
+                                const currentStatusResponse = await fetch('/api/subscriptions/status?userId=550e8400-e29b-41d4-a716-446655440001');
+                                if (currentStatusResponse.ok) {
+                                  const currentStatus = await currentStatusResponse.json();
                                   
-                                  if (resetResponse.ok) {
-                                    // Increment modal reset key to trigger modal reset
-                                    setModalResetKey(prev => prev + 1);
-                                  } else {
-                                    console.error('Reset API failed:', resetResponse.status);
+                                  // Only reset modal state after status is confirmed to be active
+                                  if (currentStatus.status === 'active') {
+                                    console.log('Resetting modal state to initial (without opening)...');
+                                    // Call the reset API to reset modal state in database
+                                    const resetResponse = await fetch('/api/cancellations/reset', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ 
+                                        userId: mockUser.id,
+                                        reason: 'pending_cancellation_reset'
+                                      })
+                                    });
+                                    
+                                    if (resetResponse.ok) {
+                                      // Increment modal reset key to trigger modal reset
+                                      setModalResetKey(prev => prev + 1);
+                                    } else {
+                                      console.error('Reset API failed:', resetResponse.status);
+                                    }
                                   }
                                 }
                               } else {
@@ -375,7 +381,16 @@ export default function ProfilePage() {
                     </button>
 
                     <button
-                      onClick={() => setShowCancelModal(true)}
+                      onClick={() => {
+                        if (subscriptionStatus === 'active') {
+                          // Reset modal state to initial page when status is active
+                          setModalResetKey(prev => prev + 1);
+                          setShowCancelModal(true);
+                        } else {
+                          // Normal behavior for other statuses
+                          setShowCancelModal(true);
+                        }
+                      }}
                       disabled={subscriptionStatus === 'cancelled'}
                       className={`inline-flex items-center justify-center w-full px-4 py-3 rounded-lg transition-all duration-200 shadow-sm group ${
                         subscriptionStatus === 'cancelled'
@@ -403,26 +418,32 @@ export default function ProfilePage() {
                             if (response.ok) {
                               console.log('Renew API call successful, updating status...');
                               // Wait for the renew API to complete and then fetch updated status
-                              await fetchSubscriptionStatus();
+                              const statusResponse = await fetchSubscriptionStatus();
                               
-                              // Only reset modal state after status is confirmed to be active
-                              if (subscriptionStatus === 'active') {
-                                console.log('Resetting modal state...');
-                                // Call the reset API to reset modal state in database
-                                const resetResponse = await fetch('/api/cancellations/reset', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ 
-                                    userId: mockUser.id,
-                                    reason: 'cancelled_subscription_renew_reset'
-                                  })
-                                });
+                              // Check if the status is now active by getting the current status
+                              const currentStatusResponse = await fetch('/api/subscriptions/status?userId=550e8400-e29b-41d4-a716-446655440001');
+                              if (currentStatusResponse.ok) {
+                                const currentStatus = await currentStatusResponse.json();
                                 
-                                if (resetResponse.ok) {
-                                  // Increment modal reset key to trigger modal reset
-                                  setModalResetKey(prev => prev + 1);
-                                } else {
-                                  console.error('Reset API failed:', resetResponse.status);
+                                // Only reset modal state after status is confirmed to be active
+                                if (currentStatus.status === 'active') {
+                                  console.log('Resetting modal state...');
+                                  // Call the reset API to reset modal state in database
+                                  const resetResponse = await fetch('/api/cancellations/reset', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ 
+                                      userId: mockUser.id,
+                                      reason: 'cancelled_subscription_renew_reset'
+                                    })
+                                  });
+                                  
+                                  if (resetResponse.ok) {
+                                    // Increment modal reset key to trigger modal reset
+                                    setModalResetKey(prev => prev + 1);
+                                  } else {
+                                    console.error('Reset API failed:', resetResponse.status);
+                                  }
                                 }
                               }
                             } else {
