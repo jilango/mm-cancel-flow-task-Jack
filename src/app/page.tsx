@@ -37,6 +37,7 @@ export default function ProfilePage() {
   
   // State for subscription status
   const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'pending_cancellation' | 'cancelled'>('active');
+  const [acceptedOffer, setAcceptedOffer] = useState<{ hasAcceptedOffer: boolean; acceptedDownsell: boolean } | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(true);
 
   // Function to reset modal state
@@ -72,7 +73,9 @@ export default function ProfilePage() {
       if (response.ok) {
         const data = await response.json();
         setSubscriptionStatus(data.status);
+        setAcceptedOffer(data.acceptedOffer);
         console.log('Subscription status updated to:', data.status);
+        console.log('Accepted offer info:', data.acceptedOffer);
       } else {
         console.error('Status fetch failed:', response.status);
       }
@@ -253,9 +256,12 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center space-x-2">
                     {subscriptionStatus === 'active' && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-green-50 text-green-700 border border-green-200">
-                        Active
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-green-50 text-green-700 border border-green-200">
+                          Active
+                        </span>
+
+                      </div>
                     )}
                     {subscriptionStatus === 'pending_cancellation' && (
                       <div className="inline-flex items-center space-x-1">

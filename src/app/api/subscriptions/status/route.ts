@@ -97,6 +97,17 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    // Check if there's an accepted offer (resolved cancellation with offer_accepted flow type)
+    const { data: acceptedOffer, error: offerError } = await supabaseAdmin
+      .from('cancellations')
+      .select('id, flow_type, accepted_downsell')
+      .eq('user_id', userId)
+      .eq('flow_type', 'offer_accepted')
+      .not('resolved_at', 'is', null)
+      .order('resolved_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     if (cancelError) {
       console.error('Failed to check for active cancellations:', cancelError);
     }
@@ -111,7 +122,11 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
-      status: finalStatus
+      status: finalStatus,
+      acceptedOffer: acceptedOffer ? {
+        hasAcceptedOffer: true,
+        acceptedDownsell: acceptedOffer.accepted_downsell
+      } : null
     });
     
     // Set CORS headers directly on response
