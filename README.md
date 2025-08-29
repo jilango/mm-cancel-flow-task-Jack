@@ -1,4 +1,4 @@
-# MigrateMate Cancellation Flow
+# Next JS Subscription Cancellation Flow
 
 A sophisticated subscription cancellation management system with A/B testing, state persistence, and comprehensive security measures.
 
